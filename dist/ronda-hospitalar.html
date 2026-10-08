@@ -1,0 +1,1507 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b2f3a">
+<title>Ronda Hospitalar</title>
+<script>try{var t=localStorage.getItem('rh_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ==========================================================================
+   Ronda Hospitalar — estilos
+   Layout: sidebar escura fixa + área de trabalho clara; painel em grade de
+   cartões; ronda em fluxo vertical de itens.
+   ========================================================================== */
+
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+img{max-width:100%}
+
+/* ---------- tema ---------- */
+:root{
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --bg:#f2f5f6; --surface:#ffffff; --surface2:#f7fafb; --ink:#0e2830; --ink2:#46606a; --muted:#6a8089;
+  --line:#dce5e8; --line2:#c6d4d9; --grid:#e6edef;
+  --brand:#0a6c7d; --brand-h:#085564; --brand-soft:#e1f1f4; --on-brand:#ffffff;
+  --side:#0b2f3a; --side-ink:#c9dfe5; --side-active:#14485a; --side-line:#1b4452;
+  --ok:#0c7a3a; --ok-bg:#e3f4ea; --warn:#855400; --warn-bg:#fdf0d0; --bad:#b42323; --bad-bg:#fbe5e5; --info:#1c5cab; --info-bg:#e4eefb;
+  --s1:#fab219; --s2:#ec835a; --s3:#d03b3b; --s4:#7a1a28;
+  --c1:#2a78d6; --good:#0ca30c;
+  --shadow:0 1px 2px rgba(14,40,48,.06),0 4px 14px rgba(14,40,48,.05);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a1418; --surface:#101d23; --surface2:#142329; --ink:#e7f1f3; --ink2:#a9bec5; --muted:#8aa0a8;
+  --line:#22363d; --line2:#2f4850; --grid:#1b2c32;
+  --brand:#3bb4c8; --brand-h:#62c8d9; --brand-soft:#12333b; --on-brand:#04222a;
+  --side:#0c1d23; --side-ink:#a9c2c9; --side-active:#173a45; --side-line:#1a323a;
+  --ok:#4cc27f; --ok-bg:#12301f; --warn:#f0b84a; --warn-bg:#33270c; --bad:#ff8585; --bad-bg:#3a1616; --info:#79b0f0; --info-bg:#14263d;
+  --s4:#c2465a; --c1:#3987e5; --shadow:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0a1418; --surface:#101d23; --surface2:#142329; --ink:#e7f1f3; --ink2:#a9bec5; --muted:#8aa0a8;
+  --line:#22363d; --line2:#2f4850; --grid:#1b2c32;
+  --brand:#3bb4c8; --brand-h:#62c8d9; --brand-soft:#12333b; --on-brand:#04222a;
+  --side:#0c1d23; --side-ink:#a9c2c9; --side-active:#173a45; --side-line:#1a323a;
+  --ok:#4cc27f; --ok-bg:#12301f; --warn:#f0b84a; --warn-bg:#33270c; --bad:#ff8585; --bad-bg:#3a1616; --info:#79b0f0; --info-bg:#14263d;
+  --s4:#c2465a; --c1:#3987e5; --shadow:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;}
+
+/* ---------- base ---------- */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--font);margin:0;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;font-weight:600;text-wrap:balance}
+h1{font-size:22px;letter-spacing:-.01em} h3{font-size:14px} small{color:var(--muted);font-size:12px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.mono{font-family:var(--mono);font-size:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+svg{flex:none}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100%}
+.side{background:var(--side);color:var(--side-ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;height:100dvh;padding:18px 12px}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 8px 18px;border-bottom:1px solid var(--side-line);margin-bottom:12px}
+.logo{width:34px;height:34px;border-radius:8px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center}
+.brand b{display:block;color:#fff;font-size:14px;line-height:1.2} .brand span{font-size:11.5px;opacity:.75}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{all:unset;box-sizing:border-box;display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;cursor:pointer;color:var(--side-ink);font-weight:500}
+.nav button:hover{background:var(--side-active)}
+.nav button[aria-current="page"]{background:var(--side-active);color:#fff;box-shadow:inset 3px 0 0 var(--brand)}
+.nav button:focus-visible{outline:2px solid #fff}
+.nav .dot{margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--s1)}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--side-line);padding-top:12px}
+.me{display:flex;gap:10px;align-items:center;padding:4px 8px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--side-active);color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+.me b{display:block;color:#fff;font-size:13px;line-height:1.2} .me span{font-size:11.5px;opacity:.75}
+.side-foot .row{display:flex;gap:6px}
+.ghost-d{all:unset;box-sizing:border-box;flex:1;display:flex;gap:8px;align-items:center;justify-content:center;padding:8px;border-radius:8px;border:1px solid var(--side-line);cursor:pointer;font-size:12.5px;color:var(--side-ink)}
+.ghost-d:hover{background:var(--side-active)} .ghost-d:focus-visible{outline:2px solid #fff}
+main{min-width:0;padding:22px clamp(16px,3vw,34px) 48px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.top p{margin:2px 0 0;color:var(--ink2)}
+.banner{background:var(--warn-bg);color:var(--warn);border:1px solid var(--line2);padding:10px 14px;border-radius:8px;margin-bottom:14px}
+
+/* ---------- controles ---------- */
+.btn{display:inline-flex;gap:8px;align-items:center;justify-content:center;border:1px solid var(--line2);background:var(--surface);padding:8px 14px;border-radius:8px;font-weight:500;min-height:38px}
+.btn:hover{background:var(--surface2)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand)} .btn.pri:hover{background:var(--brand-h)}
+.btn.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.btn.sm{min-height:30px;padding:4px 10px;font-size:12.5px}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field>span{font-size:12px;font-weight:600;color:var(--ink2);letter-spacing:.02em}
+input[type=text],input[type=password],input[type=number],input[type=date],select,textarea{width:100%;background:var(--surface);border:1px solid var(--line2);border-radius:8px;padding:9px 11px;min-height:38px}
+textarea{min-height:76px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:2px solid var(--brand-soft)}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.filters .field{min-width:150px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line2);background:var(--surface);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
+.tabs button{all:unset;box-sizing:border-box;padding:10px 16px;cursor:pointer;font-weight:500;color:var(--ink2);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--brand);border-color:var(--brand)}
+.tabs button:focus-visible{outline:2px solid var(--brand)}
+
+/* ---------- cartões e indicadores ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.card h3{margin-bottom:12px;display:flex;justify-content:space-between;gap:8px;align-items:baseline} .card h3 small{font-weight:400}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);min-width:0}
+.kpi label{font-size:12px;font-weight:600;color:var(--ink2);letter-spacing:.02em;display:block}
+.kpi strong{display:block;font-size:30px;line-height:1.15;margin:4px 0 2px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi small{display:block}
+.kpi .good{color:var(--ok)} .kpi .badc{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.span2{grid-column:1/-1}
+.empty{padding:22px 12px;text-align:center;color:var(--muted);border:1px dashed var(--line2);border-radius:10px}
+.empty b{display:block;color:var(--ink2);margin-bottom:2px}
+
+/* ---------- gráficos ---------- */
+.hb{display:flex;flex-direction:column;gap:9px}
+.hb-r{display:grid;grid-template-columns:minmax(80px,38%) 1fr 44px;gap:10px;align-items:center}
+.hb-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2);font-size:13px}
+.hb-t{height:14px;background:var(--grid);border-radius:4px;overflow:hidden}
+.hb-t i{display:block;height:100%;border-radius:0 4px 4px 0}
+.hb-v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.seg-bar{display:flex;height:16px;gap:2px;border-radius:6px;overflow:hidden;margin:6px 0 12px}
+.seg-bar i{display:block;height:100%}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink2)}
+.legend span{display:inline-flex;gap:6px;align-items:center} .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.legend b{color:var(--ink);font-variant-numeric:tabular-nums}
+#ch-line{width:100%}
+#ch-line svg{display:block;width:100%;height:auto;overflow:visible}
+.tip{position:fixed;z-index:80;pointer-events:none;background:var(--ink);color:var(--bg);padding:6px 10px;border-radius:6px;font-size:12.5px;max-width:260px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.tip[hidden]{display:none}
+
+/* ---------- tabelas e listas ---------- */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr[data-act]{cursor:pointer} tbody tr[data-act]:hover{background:var(--surface2)}
+td small{display:block}
+.num{font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;gap:6px;align-items:center;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.st-aberta{background:var(--bad-bg);color:var(--bad)} .st-tratamento{background:var(--warn-bg);color:var(--warn)} .st-resolvida{background:var(--ok-bg);color:var(--ok)}
+.pill.late{background:var(--warn-bg);color:var(--warn)} .pill.okp{background:var(--ok-bg);color:var(--ok)} .pill.off{background:var(--grid);color:var(--muted)} .pill.inf{background:var(--info-bg);color:var(--info)}
+.sev{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:600;white-space:nowrap}
+.sev b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;color:#1a1200;font-size:11px}
+.sev.s1 b{background:var(--s1)} .sev.s2 b{background:var(--s2)} .sev.s3 b{background:var(--s3);color:#fff} .sev.s4 b{background:var(--s4);color:#fff}
+.thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--grid);display:grid;place-items:center;color:var(--muted);border:1px solid var(--line);flex:none}
+img.thumb{display:block}
+.ncs{display:flex;flex-direction:column;gap:10px}
+.nc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:12px 14px;cursor:pointer;text-align:left;width:100%}
+.nc:hover{background:var(--surface2)}
+.nc.s1{border-left-color:var(--s1)} .nc.s2{border-left-color:var(--s2)} .nc.s3{border-left-color:var(--s3)} .nc.s4{border-left-color:var(--s4)}
+.nc b{display:block} .nc p{margin:2px 0 4px;color:var(--ink2);overflow-wrap:anywhere}
+.nc .meta{display:flex;gap:6px 12px;flex-wrap:wrap;color:var(--muted);font-size:12.5px}
+.nc .right{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+
+/* ---------- ronda ---------- */
+.salas{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.sala{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)}
+.sala:hover{border-color:var(--brand)}
+.sala .h{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.sala b{font-size:15px} .sala .f{display:flex;gap:6px 12px;flex-wrap:wrap;color:var(--muted);font-size:12.5px}
+.rhead{position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0 12px;margin-bottom:8px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.prog{flex:1;min-width:180px}
+.prog .bar{height:8px;background:var(--grid);border-radius:99px;overflow:hidden;margin-top:6px}
+.prog .bar i{display:block;height:100%;background:var(--brand);transition:width .2s}
+.sala-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--brand)}
+.sala-h:first-of-type{margin-top:8px}
+.sala-h h2{font-size:17px} .sala-h small{font-size:12.5px}
+.grp{margin-bottom:16px}
+.grp>.gh{display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px 12px 0 0}
+.grp>.gh .t{flex:1;min-width:0} .grp>.gh b{display:block;overflow-wrap:anywhere}
+.grp>.items{border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;background:var(--surface)}
+.grp.noitems>.gh{border-radius:12px}
+.it{padding:12px 14px;border-bottom:1px solid var(--line)} .it:last-child{border-bottom:0}
+.it-row{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.it-t{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:8px 14px;min-height:40px;font-weight:600;font-size:13px;border-right:1px solid var(--line2);color:var(--ink2)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"].c{background:#0c7a3a;color:#fff}
+.seg button[aria-pressed="true"].n{background:#b42323;color:#fff}
+.seg button[aria-pressed="true"].a{background:#5d727a;color:#fff}
+.ncp{margin-top:10px;background:var(--bad-bg);border-radius:10px;padding:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ncp .full{grid-column:1/-1}
+.ncp .ph{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ncp .ph img{width:64px;height:64px;border-radius:8px;object-fit:cover}
+.it.miss{box-shadow:inset 3px 0 0 var(--bad);background:var(--bad-bg)}
+.cal{font-size:12px}
+/* orientação da não conformidade (alerta ao inspetor) */
+.orient{display:flex;gap:10px;align-items:flex-start;background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn);border-left-width:5px;border-radius:8px;padding:10px 12px;font-size:13.5px;overflow-wrap:anywhere}
+.orient svg{margin-top:2px}
+.orient b{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+details.guide{margin-bottom:12px} details.guide summary{cursor:pointer;font-weight:600}
+.guide-l{display:grid;gap:8px;margin-top:10px}
+.guide-l div{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface2)}
+.guide-l p{margin:2px 0 0;color:var(--ink2)}
+
+/* ---------- modal ---------- */
+.ov{position:fixed;inset:0;background:rgba(5,20,26,.55);z-index:60;display:flex;justify-content:center;align-items:flex-start;padding:4vh 16px;overflow-y:auto}
+.mod{background:var(--surface);border-radius:14px;width:100%;max-width:640px;box-shadow:0 24px 60px rgba(0,0,0,.35);margin:auto 0}
+.mod.wide{max-width:820px}
+.mh{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)}
+.mb{padding:18px 20px;display:grid;gap:14px}
+.mf{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line);flex-wrap:wrap}
+.mf .sp{margin-right:auto}
+.fg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fg .full{grid-column:1/-1}
+.hint{font-size:12px;color:var(--muted)}
+.pw:not(.show){-webkit-text-security:disc}
+.chk{display:flex;gap:8px;align-items:center;font-weight:500} .chk input{width:18px;height:18px}
+.chk-list{border:1px solid var(--line2);border-radius:8px;padding:8px 12px;max-height:260px;overflow-y:auto;display:grid;gap:4px;background:var(--surface)}
+.chk-list .gt{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:6px;font-weight:600}
+.chk-list .chk{font-weight:400;padding:3px 0}
+.irow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.irow input{flex:1}
+.ic-btn{border:1px solid var(--line2);background:var(--surface);border-radius:8px;width:34px;height:34px;display:grid;place-items:center;flex:none;color:var(--ink2)}
+.ic-btn:hover{background:var(--surface2)}
+.big-img{width:100%;max-height:60vh;object-fit:contain;border-radius:10px;background:var(--grid)}
+.kv{display:grid;grid-template-columns:130px minmax(0,1fr);gap:6px 12px;font-size:13.5px} .kv dt{color:var(--muted)} .kv dd{margin:0;overflow-wrap:anywhere}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:90;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:calc(100vw - 32px)}
+.toast.bad{background:var(--bad);color:#fff}
+
+/* ---------- login / primeiro acesso ---------- */
+.auth{min-height:100%;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+.auth-l{background:var(--side);color:#fff;padding:48px clamp(24px,5vw,64px);display:flex;flex-direction:column;justify-content:space-between;gap:32px}
+.auth-l h2{font-size:clamp(26px,3.2vw,38px);font-weight:600;letter-spacing:-.02em;max-width:16ch;line-height:1.15}
+.auth-l p{max-width:44ch;color:var(--side-ink);margin:14px 0 0}
+.auth-l ul{list-style:none;margin:0;padding:0;display:grid;gap:10px;color:var(--side-ink)} .auth-l li{display:flex;gap:10px;align-items:center}
+.auth-r{display:grid;place-items:center;padding:32px 16px}
+.auth-card{width:100%;max-width:380px;display:grid;gap:16px}
+.err{color:var(--bad);font-weight:500;min-height:20px}
+.prog-seed{height:8px;background:var(--grid);border-radius:99px;overflow:hidden} .prog-seed i{display:block;height:100%;background:var(--brand);width:0}
+
+/* ---------- responsivo ---------- */
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px}
+  .brand{border:0;margin:0;padding:0}
+  .nav{flex-direction:row;overflow-x:auto;order:3;width:100%;padding-bottom:2px} .nav button{white-space:nowrap;padding:9px 12px}
+  .nav button[aria-current="page"]{box-shadow:inset 0 -3px 0 var(--brand)}
+  .side-foot{margin:0 0 0 auto;border:0;padding:0;flex-direction:row;align-items:center} .me div{display:none}
+  .side-foot .row{flex:none} .ghost-d span{display:none}
+  .grid2{grid-template-columns:minmax(0,1fr)}
+  .auth{grid-template-columns:minmax(0,1fr)} .auth-l{padding:24px 16px;gap:16px} .auth-l ul{display:none}
+  .rhead{top:0}
+}
+@media (max-width:560px){
+  .fg,.ncp{grid-template-columns:minmax(0,1fr)}
+  .nc{grid-template-columns:auto minmax(0,1fr)} .nc .right{grid-column:1/-1;flex-direction:row;align-items:center;flex-wrap:wrap}
+  .hb-r{grid-template-columns:minmax(70px,34%) 1fr 36px}
+  .seg{width:100%} .seg button{flex:1}
+  .kv{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="tip" class="tip" hidden></div>
+<div id="toast"></div>
+
+<!-- Configuração (único arquivo a editar para ligar o banco compartilhado) -->
+<script>
+/* ===== CONFIGURAÇÃO DO BANCO COMPARTILHADO =====
+   Deixe vazio para usar só neste navegador. Para vários usuários compartilharem os mesmos dados,
+   preencha as duas linhas abaixo com os dados do seu projeto Supabase (veja o LEIA-ME). */
+window.RONDA_CONFIG={
+  supabaseUrl:"https://etxrldtdbtlsiltihvhb.supabase.co",   // exemplo: "https://abcdefgh.supabase.co"
+  supabaseKey:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0eHJsZHRkYnRsc2lsdGlodmhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNDIzNjgsImV4cCI6MjEwNjkxODM2OH0.xSGpmBi2a2xlHrxlp3lRRvupJNBx5Qw12WuO-t4Q_m4"    // chave "anon" ou "publishable" do projeto
+};
+
+</script>
+
+<!-- Núcleo (a ordem importa): dados, utilitários, estado, permissões, segurança, imagens, interface, acesso aos dados -->
+<script>
+/* ==========================================================================
+   Camada de dados
+   - Sem configuração (js/config.js vazio): guarda tudo neste navegador (IndexedDB).
+   - Com RONDA_CONFIG preenchido: usa o banco compartilhado (Supabase) protegido por
+     um código de acesso da equipe, via funções SQL (veja supabase-setup.sql).
+   API exposta: window.RH.store  →  { mode, open(), volatile(), exportJSON(), importJSON(), wipeAll(), changeCode() }
+   `open()` devolve um objeto com collection(nome) e doc('colecao/id') no estilo Firestore.
+   ========================================================================== */
+(()=>{
+const RH=window.RH=window.RH||{};
+const CFG=window.RONDA_CONFIG||{},RAWURL=String(CFG.supabaseUrl||'').trim(),KEY=String(CFG.supabaseKey||'').trim(),REMOTE=!!(RAWURL||KEY);
+
+/* aceita só o endereço do projeto; remove caminhos colados por engano (/rest/v1, link do painel etc.) */
+function normUrl(u){if(!u)return '';if(!/^https?:\/\//i.test(u))u='https://'+u;
+  try{const x=new URL(u),m=/(^|\.)supabase\.com$/.test(x.hostname)&&x.pathname.match(/\/project\/([a-z0-9]+)/i);return m?'https://'+m[1]+'.supabase.co':x.origin}catch(e){return ''}}
+const BASE=normUrl(RAWURL);
+function keyProblem(){
+  if(!KEY)return 'A chave (supabaseKey) não foi preenchida em js/config.js.';
+  let role='';try{if(KEY.startsWith('eyJ'))role=JSON.parse(atob(KEY.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).role}catch(e){}
+  if(KEY.startsWith('sb_secret_')||role==='service_role')return 'Esta é a chave SECRETA do projeto e nunca deve ficar em um site. Use a chave anon (ou publishable) em Project Settings → API.';
+  return ''}
+
+const DB='ronda-hospitalar',ST='docs',mem=new Map(),subs=new Set();
+let idb=null,bc=null,volatile=false,code='';
+const clone=o=>JSON.parse(JSON.stringify(o));
+const err=(c,m)=>Object.assign(new Error(m),{code:c,message:m});
+const split=p=>{const i=p.indexOf('/');return[p.slice(0,i),p.slice(i+1)]};
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let pend=false;const notify=()=>{if(pend)return;pend=true;queueMicrotask(()=>{pend=false;subs.forEach(s=>s.run())})};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- modo local (IndexedDB) ---------- */
+const L={
+  open(){return new Promise(res=>{try{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST,{keyPath:'p'});r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);r.onblocked=()=>res(null)}catch(e){res(null)}})},
+  tx(mode,fn){return new Promise((res,rej)=>{if(!idb)return res();const t=idb.transaction(ST,mode);fn(t.objectStore(ST));t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})},
+  async loadAll(){mem.clear();if(!idb)return;await new Promise((res,rej)=>{const r=idb.transaction(ST).objectStore(ST).getAll();r.onsuccess=()=>{r.result.forEach(x=>mem.set(x.p,x.d));res()};r.onerror=()=>rej(r.error)})},
+  async persist(p,d){if(d===null)await L.tx('readwrite',s=>s.delete(p));else await L.tx('readwrite',s=>s.put({p,d}));try{bc&&bc.postMessage(1)}catch(e){}},
+  async init(){idb=await L.open();if(!idb){volatile=true;console.warn('IndexedDB indisponível: dados só ficam na memória desta aba.')}
+    try{await L.loadAll()}catch(e){console.error(e)}
+    try{bc=new BroadcastChannel(DB);bc.onmessage=async()=>{try{await L.loadAll();notify()}catch(e){}}}catch(e){}}
+};
+
+/* ---------- modo compartilhado (Supabase) ---------- */
+let badge=null;
+function status(ok,msg){
+  if(ok){if(badge){badge.remove();badge=null}return}
+  if(!badge){badge=document.createElement('div');badge.setAttribute('role','status');badge.style.cssText='position:fixed;left:12px;bottom:12px;z-index:95;background:var(--warn-bg,#fdf0d0);color:var(--warn,#855400);border:1px solid var(--line2,#ccc);padding:8px 12px;border-radius:10px;font:500 13px var(--font,system-ui);box-shadow:0 4px 14px rgba(0,0,0,.2)';document.body.appendChild(badge)}
+  badge.textContent=msg||'Sem conexão com o servidor. Tentando novamente…'}
+async function rpc(fn,args){
+  const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),25000),h={'Content-Type':'application/json',apikey:KEY};
+  if(KEY.startsWith('eyJ'))h.Authorization='Bearer '+KEY;
+  let r;try{r=await fetch(`${BASE}/rest/v1/rpc/${fn}`,{method:'POST',headers:h,body:JSON.stringify({p_code:code,...args}),signal:ctl.signal})}
+  catch(e){throw Object.assign(err('unavailable','Sem conexão com o servidor.'),{net:true})}finally{clearTimeout(t)}
+  const txt=await r.text();let j=null;try{j=txt?JSON.parse(txt):null}catch(e){}
+  if(!r.ok){const m=(j&&(j.message||j.hint))||txt||('HTTP '+r.status);throw Object.assign(err(/codigo_invalido/.test(m)?'bad_code':'unavailable',m),{status:r.status})}
+  return j}
+function overlay(html){const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:100;background:var(--bg,#f2f5f6);color:var(--ink,#0e2830);display:grid;place-items:center;padding:16px;font:14px/1.5 var(--font,system-ui)';
+  o.innerHTML=`<div style="width:100%;max-width:400px;display:grid;gap:14px;background:var(--surface,#fff);border:1px solid var(--line,#dce5e8);border-radius:14px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.12)">${html}</div>`;document.body.appendChild(o);return o}
+function askCode(msg){return new Promise(res=>{
+  const o=overlay(`<h1 style="margin:0;font-size:20px">Código de acesso da equipe</h1><p style="margin:0;color:var(--ink2,#46606a)">Digite o código fornecido pelo administrador para abrir a base de dados compartilhada. Ele fica salvo neste aparelho.</p>
+  <form id="rh-code" style="display:grid;gap:12px"><input id="rh-code-i" type="password" autocomplete="off" required placeholder="Código de acesso" style="width:100%;padding:10px 12px;border:1px solid var(--line2,#c6d4d9);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit;min-height:40px"><div role="alert" style="color:var(--bad,#b42323);font-weight:500;min-height:20px">${msg||''}</div>
+  <button style="background:var(--brand,#0a6c7d);color:var(--on-brand,#fff);border:0;border-radius:8px;padding:10px;font:600 14px var(--font,system-ui);min-height:40px;cursor:pointer">Continuar</button></form>`);
+  const i=o.querySelector('#rh-code-i');i.focus();o.querySelector('form').onsubmit=e=>{e.preventDefault();o.remove();res(i.value.trim())}})}
+function fatal(msg){return new Promise(res=>{const o=overlay(`<h1 style="margin:0;font-size:20px">Não foi possível conectar</h1><p style="margin:0;color:var(--ink2,#46606a)">${msg}</p><button style="background:var(--brand,#0a6c7d);color:var(--on-brand,#fff);border:0;border-radius:8px;padding:10px;font:600 14px var(--font,system-ui);min-height:40px;cursor:pointer">Tentar novamente</button>`);o.querySelector('button').onclick=()=>{o.remove();res()}})}
+function explain(e){
+  const m=String(e.message||'');
+  if(e.net)return 'Verifique sua internet e tente de novo.';
+  if(/Invalid path|Invalid URL|Not Found/i.test(m)&&!/function/i.test(m))return 'A URL do projeto parece incorreta. Use apenas o endereço no formato https://xxxxxxxx.supabase.co (Supabase → Project Settings → API → Project URL).';
+  if(e.status===401||e.status===403||/Invalid API key|JWT|apikey/i.test(m))return 'A chave do projeto foi recusada. Copie a chave anon (ou publishable) em Supabase → Project Settings → API.';
+  if(/Could not find the function|PGRST202|schema cache/i.test(m))return 'O script supabase-setup.sql ainda não foi executado neste projeto. Rode-o no SQL Editor do Supabase e tente de novo.';
+  return 'O servidor recusou a conexão ('+esc(m)+'). Confira a URL e a chave em js/config.js e se o script supabase-setup.sql foi executado.'}
+async function authenticate(msg){
+  for(;;){
+    const kp=keyProblem();if(!BASE){await fatal('A URL em js/config.js (supabaseUrl) está vazia ou inválida. Use o formato https://xxxxxxxx.supabase.co.');continue}
+    if(kp){await fatal(esc(kp));continue}
+    if(!code){try{code=localStorage.getItem('rh_code')||''}catch(e){}}
+    if(!code){try{await rpc('rh_check',{})}catch(e){if(e.code!=='bad_code'){await fatal(explain(e));continue}}
+      code=await askCode(msg);msg=''}
+    try{await rpc('rh_check',{});try{localStorage.setItem('rh_code',code)}catch(e){}return}
+    catch(e){
+      if(e.code==='bad_code'){code='';try{localStorage.removeItem('rh_code')}catch(x){}msg='Código incorreto. Tente novamente.';continue}
+      await fatal(explain(e))}
+  }}
+let since=0,polling=false,pollT=null;const pendingPaths=new Map();
+async function pull(){
+  if(polling)return;polling=true;
+  try{let changed=false,from=since>0?Math.max(1,since-100):0;
+    for(;;){const rows=await rpc('rh_pull',{p_since:from,p_fotos:false})||[];
+      for(const r of rows){if(r.seq>since)since=r.seq;from=r.seq;if(pendingPaths.has(r.p))continue;
+        if(r.deleted){if(mem.delete(r.p))changed=true}
+        else{const o=mem.get(r.p);if(JSON.stringify(o)!==JSON.stringify(r.d)){mem.set(r.p,r.d);changed=true}}}
+      if(rows.length<1000)break}
+    status(true);if(changed)notify();
+  }catch(e){
+    if(e.code==='bad_code'){code='';try{localStorage.removeItem('rh_code')}catch(x){}clearInterval(pollT);await authenticate('O código de acesso mudou. Digite o novo código.');since=0;mem.clear();polling=false;await pull();pollT=setInterval(tick,4000);return}
+    status(false)}
+  finally{polling=false}}
+const tick=()=>{if(!document.hidden)pull()};
+let q=[],timer=null,flushing=false;
+const inc=p=>pendingPaths.set(p,(pendingPaths.get(p)||0)+1),dec=p=>{const n=(pendingPaths.get(p)||1)-1;if(n)pendingPaths.set(p,n);else pendingPaths.delete(p)};
+function enqueue(p,d){return new Promise((res,rej)=>{q.push({p,d,res,rej});inc(p);if(!timer)timer=setTimeout(flush,25)})}
+async function flush(){
+  timer=null;if(flushing){timer=setTimeout(flush,40);return}flushing=true;
+  try{while(q.length){const batch=[];let size=0;
+      while(q.length&&batch.length<50&&(!batch.length||size<500000)){const it=q.shift();batch.push(it);size+=it.d?JSON.stringify(it.d).length:20}
+      let lastErr=null;
+      for(let k=0;k<3;k++){try{await rpc('rh_put_many',{p_items:batch.map(i=>({p:i.p,d:i.d}))});lastErr=null;break}catch(e){lastErr=e;if(e.code==='bad_code'||e.status===400||e.status===413)break;await sleep(600*(k+1))}}
+      batch.forEach(i=>{dec(i.p);lastErr?i.rej(lastErr):i.res()});
+      if(lastErr)status(false,lastErr.net?undefined:'Não foi possível salvar no servidor.');
+    }}finally{flushing=false}}
+const R={
+  async init(){await authenticate('');await pull();pollT=setInterval(tick,4000);document.addEventListener('visibilitychange',tick);addEventListener('online',tick)},
+  persist:(p,d)=>enqueue(p,d)
+};
+const B=REMOTE?R:L,persist=(p,d)=>B.persist(p,d);
+
+/* ---------- API no estilo Firestore ---------- */
+const snap=(p,d)=>({id:p.slice(p.lastIndexOf('/')+1),exists:d!==undefined,data:()=>d===undefined?undefined:clone(d),metadata:{fromCache:false,hasPendingWrites:false}});
+const merge=(old,d)=>{const v={...old};for(const[k,x]of Object.entries(clone(d))){if(x&&x.__delete__)delete v[k];else v[k]=x}return v};
+async function write(p,next){
+  const prev=mem.get(p);
+  if(next===null)mem.delete(p);else mem.set(p,next);notify();
+  try{await persist(p,next)}catch(e){if(prev===undefined)mem.delete(p);else mem.set(p,prev);notify();throw e}}
+function docRef(p){
+  return{id:p.slice(p.lastIndexOf('/')+1),path:p,
+    async get(){if(REMOTE&&p.startsWith('fotos/')&&!mem.has(p)){const d=await rpc('rh_get',{p_path:p});if(d)mem.set(p,d)}return snap(p,mem.get(p))},
+    async set(d){if(!d||typeof d!=='object')throw err('invalid_argument','corpo inválido');await write(p,clone(d))},
+    async update(d){if(!mem.has(p))throw err('not_found','documento não existe');await write(p,merge(mem.get(p),d))},
+    async delete(){await write(p,null)},
+    onSnapshot(f){const s={run:()=>f(snap(p,mem.get(p)))};subs.add(s);setTimeout(s.run,0);return()=>subs.delete(s)}};
+}
+function query(col,o,l,w){
+  const q={orderBy(f,d){return query(col,[f,d||'asc'],l,w)},limit(n){return query(col,o,n,w)},where(f,op,v){return query(col,o,l,[...w,[f,op,v]])},
+    rows(){let r=[];mem.forEach((d,p)=>{const[c,id]=split(p);if(c===col)r.push([id,d])});
+      w.forEach(([f,op,v])=>{r=r.filter(([,d])=>op==='=='?d[f]===v:op==='!='?d[f]!==v:op==='<'?d[f]<v:op==='<='?d[f]<=v:op==='>'?d[f]>v:op==='>='?d[f]>=v:true)});
+      if(o){const[f,dir]=o;r.sort((a,b)=>{const x=a[1][f],y=b[1][f];return((x==null)-(y==null))||(x>y?1:x<y?-1:0)*(dir==='desc'?-1:1)})}else r.sort((a,b)=>a[0]<b[0]?-1:1);
+      if(l)r=r.slice(0,l);return r},
+    async get(){const r=q.rows().map(([id,d])=>snap(col+'/'+id,d));return{docs:r,size:r.length,empty:!r.length,docChanges:()=>[],metadata:{}}},
+    onSnapshot(f){const s={run:()=>{const r=q.rows().map(([id,d])=>snap(col+'/'+id,d));f({docs:r,size:r.length,empty:!r.length,docChanges:()=>[],metadata:{}})}};subs.add(s);setTimeout(s.run,0);return()=>subs.delete(s)}};
+  return q}
+const collection=c=>Object.assign(query(c,null,null,[]),{path:c,doc:id=>docRef(c+'/'+(id||Math.random().toString(36).slice(2))),async add(d){const r=this.doc();await r.set(d);return r}});
+const api={collection,doc:docRef};
+
+/* ---------- backup / manutenção ---------- */
+let started=null;
+RH.store={
+  mode:REMOTE?'remote':'local',
+  volatile:()=>volatile,
+  async open(){if(!started)started=B.init();await started;return api},
+  async exportJSON(){
+    const docs=[...mem.entries()].filter(([p])=>!p.startsWith('fotos/')).map(([p,d])=>({p,d}));
+    if(REMOTE){let from=0;for(;;){const rows=await rpc('rh_pull',{p_since:from,p_fotos:true})||[];rows.forEach(r=>{from=r.seq;if(!r.deleted&&r.p.startsWith('fotos/'))docs.push({p:r.p,d:r.d})});if(rows.length<1000)break}}
+    else mem.forEach((d,p)=>{if(p.startsWith('fotos/'))docs.push({p,d})});
+    return JSON.stringify({app:'ronda-hospitalar',v:1,exportadoEm:new Date().toISOString(),docs})},
+  async importJSON(txt){const j=JSON.parse(txt);if(j.app!=='ronda-hospitalar'||!Array.isArray(j.docs))throw new Error('Arquivo de backup inválido.');
+    let n=0;for(const x of j.docs){if(typeof x.p!=='string'||!x.p.includes('/')||!x.d||typeof x.d!=='object')continue;mem.set(x.p,x.d);await persist(x.p,x.d);n++}notify();return n},
+  async wipeAll(){if(REMOTE)throw new Error('Indisponível no modo compartilhado.');const n=mem.size;mem.clear();await L.tx('readwrite',s=>s.clear());notify();return n},
+  changeCode(){try{localStorage.removeItem('rh_code')}catch(e){}location.reload()}
+};
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Núcleo · utilitários
+   Cria o namespace global window.RH (usado por todos os outros arquivos) e
+   define: seletor ($), escape de HTML, ids, constantes de domínio (severidade,
+   situação, perfis), formatadores de data/número em pt-BR e os ícones.
+   Não depende de nenhum outro arquivo do projeto.
+   ========================================================================== */
+(()=>{
+const RH=window.RH=window.RH||{};
+
+const $=(s,e=document)=>e.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ---------- constantes de domínio ---------- */
+const SEV={1:'Baixa',2:'Média',3:'Alta',4:'Crítica'};
+const ST={aberta:'Aberta',tratamento:'Em tratamento',resolvida:'Resolvida'};
+const ROLE={admin:'Administrador',gestor:'Gestor da qualidade',inspetor:'Inspetor'};
+
+/* ---------- datas e números (pt-BR) ---------- */
+const fdt=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+const fd=t=>new Date(t).toLocaleDateString('pt-BR');
+const fdm=t=>new Date(t).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+const pc=v=>v==null?'—':(Math.round(v*10)/10).toLocaleString('pt-BR')+'%';
+const ago=t=>{const h=(Date.now()-t)/36e5;if(h<1)return 'há '+Math.max(1,Math.round(h*60))+' min';if(h<48)return 'há '+Math.round(h)+' h';return 'há '+Math.round(h/24)+' dias'};
+const dur=h=>h==null?'—':h<48?Math.round(h)+' h':(h/24).toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias';
+const sod=t=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};
+/* AAAA-MM-DD no fuso LOCAL (toISOString usaria UTC e erraria o dia à noite) */
+const ymd=t=>{const d=new Date(t),z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())};
+
+/* ---------- ícones (SVG inline) ---------- */
+const IC={
+dash:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+clip:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM9 13l2 2 4-4"/>',
+hist:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+alert:'<path d="M12 3 2 20h20L12 3zM12 10v4M12 17v.5"/>',
+set:'<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+out:'<path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9"/>',
+sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/>',
+moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+plus:'<path d="M12 5v14M5 12h14"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+check:'<path d="m5 12 5 5 9-10"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',up:'<path d="m6 15 6-6 6 6"/>',dn:'<path d="m6 9 6 6 6-6"/>',
+trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+cross:'<path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/>',
+dev:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M7 11h2l1.5-3 2 6 1.5-3H17M9 21h6"/>',
+shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>'};
+const ic=(n,s=18)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+const empty=(t,s='')=>`<div class="empty"><b>${esc(t)}</b>${esc(s)}</div>`;
+
+Object.assign(RH,{$,esc,uid,SEV,ST,ROLE,fdt,fd,fdm,pc,ago,dur,sod,ymd,IC,ic,empty});
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Núcleo · estado da aplicação
+   - RH.S   : cópia local dos cadastros e registros (atualizada em tempo real).
+   - RH.st  : estado da interface (usuário logado, tela atual, ronda em andamento…).
+   - RH.F / NF / HF : filtros do Painel, das Não conformidades e do Histórico.
+   - Registros onde cada tela se "pluga": RH.pages, RH.after, RH.ACT,
+     RH.ON_CHANGE, RH.ON_INPUT, RH.ON_SUBMIT (despachados em js/app.js).
+   - Funções de consulta usadas por várias telas (byId, salasDaRonda, execs).
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+
+/* coleções do banco → RH.S[coleção]; "config" vira RH.S.cfg */
+RH.COLS=['users','salas','equipamentos','checklists','tiposNC','modelos','rondas','ncs','config'];
+const S=RH.S={users:[],salas:[],equipamentos:[],checklists:[],tiposNC:[],modelos:[],rondas:[],ncs:[],cfg:{}};
+
+RH.st={
+  db:null,          // banco (collection/doc) aberto por RH.store.open()
+  me:null,          // usuário logado
+  page:'painel',    // tela atual
+  screen:'',        // 'noaccess' | 'login' | 'setup' | 'app' (evita redesenhar à toa)
+  busy:false,       // true durante operações longas (não redesenha a tela)
+  booted:false,     // true quando todas as coleções chegaram pela 1ª vez
+  canWrite:true,
+  R:null,           // ronda em andamento (preenchimento)
+  M:null,           // formulário de cadastro aberto (modal)
+  cadTab:'modelos'  // aba atual de Cadastros
+};
+
+RH.F={periodo:30,setor:''};
+RH.NF={status:'abertas',sev:'',setor:'',q:''};
+RH.HF={ronda:'',periodo:30};
+
+RH.pages={};       // pages[nome]() → HTML da tela
+RH.after={};       // after[nome]() → roda depois de desenhar a tela (ex.: gráfico)
+RH.ACT={};         // ACT[data-act](elemento, evento) → cliques
+RH.ON_CHANGE=[];   // funções (el,e) → true se tratou o evento "change"
+RH.ON_INPUT=[];    // idem para "input"
+RH.ON_SUBMIT={};   // ON_SUBMIT[id do form](form)
+
+/* ---------- consultas ---------- */
+const byId=(a,id)=>a.find(x=>x.id===id);
+RH.byId=byId;
+RH.userName=id=>byId(S.users,id)?.nome||'—';
+
+/* salas ativas de uma ronda cadastrada, na ordem salva */
+RH.salasDaRonda=m=>(m.salaIds||[]).map(id=>byId(S.salas,id)).filter(s=>s&&s.ativo!==false);
+
+/* Uma "execução" de ronda grava um documento por sala visitada, todos com o mesmo
+   execId. Esta função junta os documentos de volta em uma linha por execução.
+   Documentos antigos (sem execId) viram uma execução própria. */
+RH.execs=list=>{
+  const g=new Map();
+  list.forEach(r=>{
+    const k=r.execId||r.id;let e=g.get(k);
+    if(!e){e={id:k,nome:r.modeloNome||r.salaNome||'Ronda',modeloId:r.modeloId||null,ts:r.ts,inspNome:r.inspNome,c:0,nc:0,na:0,docs:[]};g.set(k,e)}
+    e.docs.push(r);e.c+=r.c||0;e.nc+=r.nc||0;e.na+=r.na||0;if(r.ts<e.ts)e.ts=r.ts});
+  return [...g.values()].map(e=>({...e,pct:e.c+e.nc?Math.round(e.c/(e.c+e.nc)*1000)/10:100})).sort((a,b)=>b.ts-a.ts);
+};
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Núcleo · permissões por perfil (um único lugar para todas as regras de acesso)
+
+     Administrador : todas as telas (inclusive Cadastros)
+     Gestor        : Painel, Nova ronda, Histórico e Não conformidades
+     Inspetor      : SOMENTE "Nova ronda"
+
+   Rondas: uma ronda com responsável só é vista/realizada por ele; uma ronda
+   "Sem responsável" é vista e realizada por todos os usuários com acesso a
+   Nova ronda. Perfil desconhecido é tratado como Inspetor (menor privilégio).
+
+   Atenção: estas regras controlam a INTERFACE. O banco compartilhado é protegido
+   apenas pelo código de acesso da equipe (veja LEIA-ME.md).
+   ========================================================================== */
+(()=>{
+const RH=window.RH,st=RH.st;
+
+const PAGES={
+  admin:['painel','ronda','historico','ncs','cadastros'],
+  gestor:['painel','ronda','historico','ncs'],
+  inspetor:['ronda']
+};
+const pagesOf=()=>PAGES[st.me&&st.me.role]||PAGES.inspetor;
+const gerencia=()=>!!st.me&&['admin','gestor'].includes(st.me.role);
+
+RH.access={
+  PAGES,
+  can:p=>!!st.me&&pagesOf().includes(p),
+  firstPage:()=>pagesOf()[0],
+  /* a ronda cadastrada `m` aparece para o usuário `u`? */
+  rondaVisivel:(m,u)=>!!u&&m.ativo!==false&&(!m.responsavelId||m.responsavelId===u.id),
+  canEditNC:()=>gerencia()&&st.canWrite!==false,
+  canDeleteNC:()=>gerencia()&&st.canWrite!==false
+};
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Núcleo · senhas
+   Guarda apenas o hash PBKDF2-SHA256 (60 mil iterações) com sal por usuário.
+   Requer HTTPS (ou localhost), pois usa crypto.subtle.
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const enc=s=>new TextEncoder().encode(s);
+RH.hash=async(pw,salt)=>{
+  const k=await crypto.subtle.importKey('raw',enc(pw),'PBKDF2',false,['deriveBits']);
+  const b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc(salt),iterations:60000,hash:'SHA-256'},k,256);
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Núcleo · imagens
+   Reduz fotos (câmera do celular) antes de gravar: miniatura 160 px e versão
+   completa 960 px, ambas em JPEG. Devolve {thumb, full} (data URLs).
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+function readImg(file,max,q){return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=rej;fr.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{
+  const k=Math.min(1,max/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));
+  c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',q))};im.src=fr.result};fr.readAsDataURL(file)})}
+RH.processImg=async file=>({thumb:await readImg(file,160,.6),full:await readImg(file,960,.7)});
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Núcleo · componentes de interface
+   toast (aviso), tooltip, janela modal, confirmação em dois toques e os
+   pequenos "selos" reutilizados em várias telas (severidade, situação, ativo,
+   orientação da não conformidade).
+   ========================================================================== */
+(()=>{
+const RH=window.RH,{$,esc,ic,SEV,ST}=RH,st=RH.st;
+
+/* ---------- aviso rápido ---------- */
+RH.toast=(m,k)=>{const t=$('#toast');t.innerHTML=`<div class="toast ${k||''}" role="status">${esc(m)}</div>`;clearTimeout(RH.toast.t);RH.toast.t=setTimeout(()=>t.innerHTML='',3800)};
+
+/* ---------- tooltip (qualquer elemento com data-tip + gráfico) ---------- */
+const tip=RH.tip=$('#tip');
+RH.showTip=(t,x,y)=>{tip.textContent=t;tip.hidden=false;const w=tip.offsetWidth,h=tip.offsetHeight;tip.style.left=Math.min(innerWidth-w-8,Math.max(8,x+12))+'px';tip.style.top=Math.max(8,y-h-12)+'px'};
+document.addEventListener('mousemove',e=>{const t=e.target.closest&&e.target.closest('[data-tip]');if(t)RH.showTip(t.dataset.tip,e.clientX,e.clientY);else if(!e.target.closest||!e.target.closest('#ch-line'))tip.hidden=true});
+
+/* ---------- janela modal ---------- */
+RH.modal=(html,wide)=>{$('#modal').innerHTML=`<div class="ov" data-act="ovClose"><div class="mod ${wide?'wide':''}" role="dialog" aria-modal="true">${html}</div></div>`;
+  const f=$('#modal input:not([type=file]),#modal select,#modal textarea');if(f&&matchMedia('(min-width:700px)').matches)f.focus()};
+RH.closeModal=()=>{$('#modal').innerHTML='';st.M=null};
+addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modal').firstChild)RH.closeModal()});
+
+/* ---------- confirmação em dois toques: devolve true no 2º toque (até 3 s depois) ---------- */
+let armT;
+RH.confirmArm=(fn,msg)=>{if(fn.armed){fn.armed=false;return true}fn.armed=true;RH.toast(msg);clearTimeout(armT);armT=setTimeout(()=>fn.armed=false,3000);return false};
+
+/* ---------- selos ---------- */
+RH.sevPill=n=>`<span class="sev s${n}"><b>${n}</b>${SEV[n]||''}</span>`;
+RH.stPill=s=>`<span class="pill st-${s}"><i></i>${ST[s]||s}</span>`;
+RH.actPill=x=>x.ativo===false?'<span class="pill off">Inativo</span>':'<span class="pill okp">Ativo</span>';
+/* alerta com a "Orientação / ação esperada" de um tipo de NC (vazio se não houver texto) */
+RH.orientBox=txt=>txt?`<div class="orient" role="note">${ic('alert',18)}<div><b>Orientação / ação esperada</b>${esc(txt)}</div></div>`:'';
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Núcleo · acesso aos dados
+   - put / upd / del : gravam, atualizam e apagam documentos ("coleção/id").
+   - safe(fn)        : executa uma gravação e mostra uma mensagem clara se falhar.
+   - syncAll()       : assina todas as coleções; a cada mudança atualiza RH.S e a tela.
+   ========================================================================== */
+(()=>{
+const RH=window.RH,{S,st,COLS,byId}=RH;
+
+RH.put=(c,id,d)=>st.db.doc(`${c}/${id}`).set(d);
+RH.upd=(c,id,d)=>st.db.doc(`${c}/${id}`).update(d);
+RH.del=(c,id)=>st.db.doc(`${c}/${id}`).delete();
+
+RH.safe=async fn=>{
+  try{return await fn()}
+  catch(e){console.error(e);const c=e&&e.code;
+    RH.toast(c==='not_found'?'Este registro não existe mais (foi excluído em outro aparelho). Atualize a tela.':c==='quota_exceeded'?'Limite de armazenamento atingido.':'Não foi possível salvar. Verifique a conexão e tente novamente.','bad');
+    return undefined}};
+
+const ready={};
+function sync(col){
+  let q=st.db.collection(col);if(col==='rondas'||col==='ncs')q=q.orderBy('ts','desc').limit(1000);
+  q.onSnapshot(s=>{const rows=s.docs.map(d=>({id:d.id,...d.data()}));
+    if(col==='config')S.cfg=rows.find(r=>r.id==='main')||{};else S[col]=rows;
+    ready[col]=true;onData()},e=>{console.error(col,e);ready[col]=true;onData()});
+}
+function onData(){
+  if(!st.booted){
+    if(COLS.every(c=>ready[c])){st.booted=true;
+      try{const id=sessionStorage.getItem('rh_uid');const u=id&&byId(S.users,id);if(u&&u.ativo!==false)st.me=u}catch(e){}
+      RH.renderRoot()}
+    return}
+  if(st.me){const u=byId(S.users,st.me.id);if(!u||u.ativo===false){RH.logout();return}st.me=u}
+  clearTimeout(onData.t);onData.t=setTimeout(RH.renderRoot,200);
+}
+RH.syncAll=()=>COLS.forEach(sync);
+})();
+
+</script>
+
+<!-- Telas -->
+<script>
+/* ==========================================================================
+   Painel de controle: indicadores, gráficos e listas de atenção.
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const {$,esc,S,F,pc,dur,ago,fd,fdt,fdm,sod,ic,empty,sevPill,stPill,SEV,ST}=RH;
+let cache=null;
+
+function hbars(rows,o={}){
+  rows=rows.filter(r=>r.v>0||o.keepZero);if(!rows.length)return empty('Sem dados no período');
+  const m=Math.max(...rows.map(r=>r.v),1);
+  return `<div class="hb">${rows.map(r=>`<div class="hb-r" data-tip="${esc(r.l)}: ${r.v}"><span class="hb-l" title="${esc(r.l)}">${esc(r.l)}</span><span class="hb-t"><i style="width:${r.v?Math.max(r.v/m*100,2):0}%;background:${r.c||'var(--c1)'}"></i></span><span class="hb-v">${r.v}</span></div>`).join('')}</div>`}
+
+RH.pages.painel=()=>{
+  const now=Date.now(),days=F.periodo,start=sod(now-(days-1)*864e5);
+  const setores=[...new Set(S.salas.map(s=>s.setor).filter(Boolean))].sort();
+  const okSet=x=>!F.setor||x.setor===F.setor;
+  const rs=S.rondas.filter(r=>r.ts>=start&&okSet(r)), ns=S.ncs.filter(n=>n.ts>=start&&okSet(n));
+  let C=0,N=0;rs.forEach(r=>{C+=r.c;N+=r.nc});
+  const pct=C+N?C/(C+N)*100:null, meta=+S.cfg.meta||95;
+  const abertas=S.ncs.filter(n=>n.status!=='resolvida'&&okSet(n)), graves=abertas.filter(n=>n.sev>=3);
+  const rz=ns.filter(n=>n.status==='resolvida'&&n.resolvidoEm), tmr=rz.length?rz.reduce((a,n)=>a+(n.resolvidoEm-n.ts),0)/rz.length/36e5:null;
+  const nExec=new Set(rs.map(r=>r.execId||r.id)).size;
+
+  /* salas inspecionadas no período */
+  const salas=S.salas.filter(s=>s.ativo!==false&&(!F.setor||s.setor===F.setor));
+  const insp=new Set(rs.map(r=>r.salaId)), cob=salas.length?salas.filter(s=>insp.has(s.id)).length/salas.length*100:null;
+
+  /* rondas (cadastro "Nome da ronda") em atraso: última execução mais antiga que a periodicidade */
+  const lastM={};S.rondas.forEach(r=>{if(r.modeloId&&(!lastM[r.modeloId]||r.ts>lastM[r.modeloId]))lastM[r.modeloId]=r.ts});
+  const modelos=S.modelos.filter(m=>m.ativo!==false&&(!F.setor||RH.salasDaRonda(m).some(s=>s.setor===F.setor)));
+  const atraso=modelos.filter(m=>!lastM[m.id]||now-lastM[m.id]>(+m.freq||24)*36e5);
+
+  /* série diária */
+  const ser=[];for(let i=0;i<days;i++){ser.push({t:start+i*864e5,c:0,n:0,r:0})}
+  rs.forEach(r=>{const i=Math.min(days-1,Math.floor((sod(r.ts)-start)/864e5));if(ser[i]){ser[i].c+=r.c;ser[i].n+=r.nc;ser[i].r++}});
+  cache={ser,meta};
+  const cnt=(arr,f)=>{const m={};arr.forEach(x=>{const k=f(x);if(k)m[k]=(m[k]||0)+1});return Object.entries(m).map(([l,v])=>({l,v})).sort((a,b)=>b.v-a.v)};
+  const porSetor=cnt(ns,n=>n.setor), porEq=cnt(ns.filter(n=>n.eqNome),n=>n.eqNome+(n.salaNome?' · '+n.salaNome:'')).slice(0,6), porTipo=cnt(ns,n=>n.tipoNome).slice(0,6);
+  const sevRows=[4,3,2,1].map(s=>({l:SEV[s],v:ns.filter(n=>n.sev===s).length,c:`var(--s${s})`}));
+  const stC={aberta:0,tratamento:0,resolvida:0};ns.forEach(n=>stC[n.status]=(stC[n.status]||0)+1);const stT=ns.length||1;
+  const stCol={aberta:'var(--s3)',tratamento:'var(--s1)',resolvida:'var(--good)'};
+  const porSala=salas.map(s=>{let c=0,n=0;rs.filter(r=>r.salaId===s.id).forEach(r=>{c+=r.c;n+=r.nc});return {s,p:c+n?c/(c+n)*100:null}}).sort((a,b)=>(a.p??101)-(b.p??101));
+  const rec=S.ncs.filter(okSet).slice(0,6);
+  const tile=(l,v,sub,cls='')=>`<div class="kpi"><label>${l}</label><strong class="${cls}">${v}</strong><small>${sub}</small></div>`;
+
+  return `<div class="top"><div><h1>Painel de controle</h1><p>Indicadores de conformidade das rondas${F.setor?' · '+esc(F.setor):' · todos os setores'}</p></div>
+  <div class="filters"><label class="field"><span>Período</span><select data-set="F:periodo" data-num="1">${[7,30,90].map(d=>`<option value="${d}" ${d===days?'selected':''}>Últimos ${d} dias</option>`).join('')}</select></label>
+  <label class="field"><span>Setor</span><select data-set="F:setor"><option value="">Todos os setores</option>${setores.map(s=>`<option ${s===F.setor?'selected':''}>${esc(s)}</option>`).join('')}</select></label></div></div>
+  <section class="kpis" aria-label="Indicadores">
+  ${tile('Conformidade geral',pc(pct),pct==null?'Sem rondas no período':pct>=meta?`Meta de ${meta}% atingida`:`Abaixo da meta de ${meta}%`,pct==null?'':pct>=meta?'good':'badc')}
+  ${tile('Rondas realizadas',nExec.toLocaleString('pt-BR'),`${(C+N).toLocaleString('pt-BR')} itens avaliados`)}
+  ${tile('NCs em aberto',abertas.length,`${graves.length} de severidade alta ou crítica`,graves.length?'badc':'')}
+  ${tile('Tempo médio de resolução',dur(tmr),`${rz.length} NC${rz.length===1?'':'s'} resolvida${rz.length===1?'':'s'}`)}
+  ${tile('Cobertura de salas',pc(cob),`${salas.filter(s=>insp.has(s.id)).length} de ${salas.length} salas inspecionadas`)}
+  ${tile('Rondas em atraso',atraso.length,atraso.length?'Veja a lista abaixo':'Todas dentro da periodicidade',atraso.length?'badc':'good')}
+  </section>
+  <section class="grid2">
+  <div class="card span2"><h3>Conformidade por dia <small>meta ${meta}%</small></h3><div id="ch-line"></div></div>
+  <div class="card"><h3>Não conformidades por setor <small>${ns.length} no período</small></h3>${hbars(porSetor)}</div>
+  <div class="card"><h3>Por severidade</h3>${hbars(sevRows,{keepZero:1})}</div>
+  <div class="card"><h3>Situação das NCs do período</h3>${ns.length?`<div class="seg-bar" role="img" aria-label="Distribuição por situação">${Object.keys(ST).map(k=>stC[k]?`<i style="flex:${stC[k]};background:${stCol[k]}" data-tip="${ST[k]}: ${stC[k]}"></i>`:'').join('')}</div>
+   <div class="legend">${Object.keys(ST).map(k=>`<span><i style="background:${stCol[k]}"></i>${ST[k]} <b>${stC[k]||0}</b> <small>(${Math.round((stC[k]||0)/stT*100)}%)</small></span>`).join('')}</div>`:empty('Sem NCs no período')}</div>
+  <div class="card"><h3>Tipos de NC mais frequentes</h3>${hbars(porTipo)}</div>
+  <div class="card"><h3>Equipamentos com mais NCs</h3>${hbars(porEq)}</div>
+  <div class="card"><h3>Rondas em atraso</h3>${atraso.length?`<div class="hb">${atraso.slice(0,6).map(m=>`<div class="hb-r" style="grid-template-columns:1fr auto"><span class="hb-l" style="color:var(--ink)">${esc(m.nome)} <small>${(m.salaIds||[]).length} sala${(m.salaIds||[]).length===1?'':'s'}</small></span><span class="pill late">${lastM[m.id]?ago(lastM[m.id]):'Nunca realizada'}</span></div>`).join('')}</div>`:empty('Nenhuma ronda em atraso','Todas as rondas estão dentro da periodicidade.')}</div>
+  <div class="card span2"><h3>Conformidade por sala <small>ordenado da menor para a maior</small></h3>${porSala.length?`<div class="hb">${porSala.map(x=>`<div class="hb-r" data-tip="${esc(x.s.nome)}: ${pc(x.p)}"><span class="hb-l">${esc(x.s.nome)}</span><span class="hb-t"><i style="width:${x.p??0}%;background:${x.p==null?'transparent':x.p>=meta?'var(--c1)':'var(--s3)'}"></i></span><span class="hb-v">${x.p==null?'—':Math.round(x.p)+'%'}</span></div>`).join('')}</div><p class="hint" style="margin:10px 0 0">Barras vermelhas estão abaixo da meta de ${meta}%.</p>`:empty('Nenhuma sala cadastrada','Cadastre salas em Cadastros.')}</div>
+  <div class="card span2"><h3>Não conformidades recentes</h3>${rec.length?`<div class="tw" style="border:0"><table><thead><tr><th>Data</th><th>Local</th><th>Descrição</th><th>Severidade</th><th>Situação</th></tr></thead><tbody>${rec.map(n=>`<tr data-act="ncOpen" data-id="${n.id}"><td class="num">${fdt(n.ts)}</td><td>${esc(n.eqNome||n.salaNome)}<small>${esc(n.eqNome?n.salaNome:n.setor||'')}</small></td><td>${esc((n.desc||n.itemTexto||'').slice(0,80))}</td><td>${sevPill(n.sev)}</td><td>${stPill(n.status)}</td></tr>`).join('')}</tbody></table></div>`:empty('Nenhuma não conformidade registrada')}</div>
+  </section>`;
+};
+
+/* gráfico de linha da conformidade diária (SVG próprio) */
+function drawLine(){
+  const el=$('#ch-line');if(!el||!cache)return;
+  const {ser,meta}=cache,W=Math.max(300,el.clientWidth||640),H=230,L=40,Rr=14,T=12,B=26;
+  const pts=ser.map((d,i)=>({i,t:d.t,v:d.c+d.n?d.c/(d.c+d.n)*100:null,r:d.r,n:d.n}));
+  const vals=pts.filter(p=>p.v!=null).map(p=>p.v);
+  if(!vals.length){el.innerHTML=empty('Sem rondas no período','Registre uma ronda para ver a evolução da conformidade.');return}
+  const lo=Math.max(0,Math.floor((Math.min(...vals,meta)-4)/10)*10),hi=100;
+  const x=i=>L+(pts.length<2?0:i/(pts.length-1))*(W-L-Rr), y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-B);
+  let g='';for(let v=lo;v<=hi;v+=(hi-lo>40?20:10))g+=`<line x1="${L}" x2="${W-Rr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" fill="var(--muted)" font-size="11">${v}%</text>`;
+  const step=Math.ceil(pts.length/(W<520?5:8));let xt='';pts.forEach((p,i)=>{if(i%step===0||(i===pts.length-1&&i%step>=Math.ceil(step/2)))xt+=`<text x="${x(i)}" y="${H-6}" text-anchor="middle" fill="var(--muted)" font-size="11">${fdm(p.t)}</text>`});
+  let d='',pen=false;pts.forEach(p=>{if(p.v==null){pen=false;return}d+=(pen?'L':'M')+x(p.i).toFixed(1)+' '+y(p.v).toFixed(1);pen=true});
+  const dots=pts.filter(p=>p.v!=null).map((p,k,a)=>`<circle cx="${x(p.i)}" cy="${y(p.v)}" r="${k===a.length-1?5:pts.length>45?0:3}" fill="var(--c1)" stroke="var(--surface)" stroke-width="2"/>`).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Conformidade diária, de ${pc(Math.min(...vals))} a ${pc(Math.max(...vals))}">${g}
+  <line x1="${L}" x2="${W-Rr}" y1="${y(meta)}" y2="${y(meta)}" stroke="var(--good)" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${W-Rr}" y="${y(meta)-5}" text-anchor="end" fill="var(--ok)" font-size="11" font-weight="600">Meta ${meta}%</text>
+  <path d="${d}" fill="none" stroke="var(--c1)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xt}
+  <line id="xh" y1="${T}" y2="${H-B}" stroke="var(--line2)" stroke-dasharray="3 3" visibility="hidden"/><circle id="xd" r="5" fill="var(--c1)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/><rect x="${L}" y="${T}" width="${W-L-Rr}" height="${H-T-B}" fill="transparent" id="xr"/></svg>`;
+  const svg=el.firstChild,r=$('#xr',svg),xh=$('#xh',svg),xd=$('#xd',svg);
+  r.addEventListener('mousemove',e=>{const b=svg.getBoundingClientRect(),sx=(e.clientX-b.left)*W/b.width;
+    let best=null;pts.forEach(p=>{if(p.v==null)return;if(!best||Math.abs(x(p.i)-sx)<Math.abs(x(best.i)-sx))best=p});if(!best)return;
+    xh.setAttribute('x1',x(best.i));xh.setAttribute('x2',x(best.i));xh.setAttribute('visibility','visible');xd.setAttribute('cx',x(best.i));xd.setAttribute('cy',y(best.v));xd.setAttribute('visibility','visible');
+    RH.showTip(`${fd(best.t)} · ${pc(best.v)} · ${best.r} sala${best.r===1?'':'s'} · ${best.n} NC`,e.clientX,e.clientY)});
+  r.addEventListener('mouseleave',()=>{RH.tip.hidden=true;xh.setAttribute('visibility','hidden');xd.setAttribute('visibility','hidden')});
+}
+RH.after.painel=drawLine;
+let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(RH.st.page==='painel')drawLine()},150)});
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Nova ronda: lista as rondas cadastradas (Cadastros → Rondas) que o usuário pode
+   realizar e conduz o preenchimento do checklist de TODAS as salas da ronda.
+
+   Regras de acesso:
+   - ronda com responsável  → só ele a vê e realiza;
+   - ronda "Sem responsável" → todos os usuários com acesso à tela (todos os inspetores).
+   Ao finalizar, gera um documento em `rondas` por sala visitada (todos com o mesmo
+   execId, modeloId e modeloNome) e uma não conformidade em `ncs` para cada item NC.
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const {$,esc,S,st,byId,userName,pc,ago,fdt,fd,ic,empty,toast,SEV}=RH;
+
+/* alvos de uma sala: o ambiente e cada equipamento ativo */
+function alvos(sala){
+  const o=[{a:'s',i:sala.id,n:'Ambiente · '+sala.nome,cl:byId(S.checklists,sala.checklistId)}];
+  S.equipamentos.filter(e=>e.salaId===sala.id&&e.ativo!==false).forEach(e=>o.push({a:'e',i:e.id,n:e.nome,eq:e,cl:byId(S.checklists,e.checklistId)}));
+  return o}
+const prefix=(sid,al)=>`${sid}:${al.a}:${al.i}:`;
+const thumbEq=e=>e.thumb?`<img class="thumb" src="${e.thumb}" alt="${esc(e.nome)}">`:`<div class="thumb">${ic('dev',22)}</div>`;
+RH.thumbEq=thumbEq;
+RH.calBadge=d=>{const dias=Math.round((new Date(d+'T23:59:59')-Date.now())/864e5);
+  return dias<0?`<span class="pill st-aberta cal">Calibração vencida em ${fd(new Date(d+'T12:00:00'))}</span>`:dias<=30?`<span class="pill late cal">Calibração vence em ${dias} d</span>`:`<small class="cal">Calibração até ${fd(new Date(d+'T12:00:00'))}</small>`};
+
+/* ---------- lista de rondas ---------- */
+const visiveis=()=>S.modelos.filter(m=>RH.access.rondaVisivel(m,st.me)).sort((a,b)=>a.nome.localeCompare(b.nome));
+const lastExec=id=>{let l=null;S.rondas.forEach(r=>{if(r.modeloId===id&&(!l||r.ts>l.ts))l=r});return l};
+
+RH.pages.ronda=()=>{
+  const lista=visiveis();
+  const vazio=!S.modelos.length
+    ?empty('Nenhuma ronda cadastrada',st.me.role==='admin'?'Cadastre as rondas em Cadastros → Rondas (nome, salas e responsável).':'Peça ao administrador para cadastrar as rondas.')
+    :empty('Nenhuma ronda disponível para você','As rondas são exibidas apenas ao responsável escolhido ou a todos os inspetores quando não há responsável. Fale com o administrador.');
+  return `<div class="top"><div><h1>Nova ronda</h1><p>Escolha a ronda que você vai realizar.</p></div></div>
+  ${st.R?`<div class="banner">Há uma ronda em andamento (${esc(st.R.nome)}). <button class="btn sm" data-act="resumeRonda">Continuar ronda</button></div>`:''}
+  ${lista.length?`<div class="salas">${lista.map(m=>{
+    const l=lastExec(m.id),late=!l||Date.now()-l.ts>(+m.freq||24)*36e5,salas=RH.salasDaRonda(m);
+    const ne=salas.reduce((n,s)=>n+S.equipamentos.filter(e=>e.salaId===s.id&&e.ativo!==false).length,0);
+    return `<button class="sala" data-act="pickRonda" data-id="${m.id}"><div class="h"><b>${esc(m.nome)}</b>${late?'<span class="pill late">Em atraso</span>':'<span class="pill okp">Em dia</span>'}</div>
+    ${m.descricao?`<small>${esc(m.descricao)}</small>`:''}
+    <div class="f"><span>${salas.length} sala${salas.length===1?'':'s'}</span><span>${ne} equipamento${ne===1?'':'s'}</span></div>
+    <div class="f"><span>Responsável: ${m.responsavelId?esc(userName(m.responsavelId)):'todos os inspetores'}</span></div>
+    <small>${l?`Última realização ${ago(l.ts)}`:'Nunca realizada'} · a cada ${+m.freq||24} h</small></button>`}).join('')}</div>`:vazio}`;
+};
+
+/* ---------- execução ---------- */
+function startRonda(id){
+  const m=byId(S.modelos,id);if(!m)return;
+  if(!RH.access.rondaVisivel(m,st.me)){toast('Você não tem acesso a esta ronda.','bad');return}
+  const salas=RH.salasDaRonda(m);
+  if(!salas.length){toast('Esta ronda não tem salas ativas. Ajuste em Cadastros → Rondas.','bad');return}
+  const itens={};
+  salas.forEach(sala=>alvos(sala).forEach(al=>(al.cl?.itens||[]).forEach(it=>{itens[prefix(sala.id,al)+it.id]={sid:sala.id,a:al.a,i:al.i,n:al.n,t:it.t,r:''}})));
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',salaIds:salas.map(s=>s.id),itens,obs:'',started:Date.now()};
+  RH.renderView(true);scrollTo(0,0);
+}
+
+function itemHtml(k){
+  const it=st.R.itens[k],nc=it.r==='NC',tipo=nc?byId(S.tiposNC,it.tipoId):null;
+  return `<div class="it" id="it-${k}"><div class="it-row"><div class="it-t">${esc(it.t)}</div>
+  <div class="seg" role="group" aria-label="Resultado">${[['C','Conforme','c'],['NC','Não conforme','n'],['NA','N/A','a']].map(([v,l,c])=>`<button type="button" class="${c}" data-act="res" data-k="${k}" data-r="${v}" aria-pressed="${it.r===v}">${l}</button>`).join('')}</div></div>
+  ${nc?`<div class="ncp"><label class="field"><span>Tipo de não conformidade</span><select data-nc="tipoId" data-k="${k}"><option value="">Selecione…</option>${S.tiposNC.map(t=>`<option value="${t.id}" ${it.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></label>
+  <label class="field"><span>Severidade</span><select data-nc="sev" data-k="${k}">${[1,2,3,4].map(s=>`<option value="${s}" ${(it.sev||2)==s?'selected':''}>${s} · ${SEV[s]}</option>`).join('')}</select></label>
+  ${tipo&&tipo.orient?`<div class="full">${RH.orientBox(tipo.orient)}</div>`:''}
+  <label class="field full"><span>Descrição do problema</span><textarea data-nc="desc" data-k="${k}" placeholder="O que foi encontrado, onde e em que condição?">${esc(it.desc||'')}</textarea></label>
+  <div class="full ph">${it.thumb?`<img src="${it.thumb}" alt="Foto da não conformidade"><button type="button" class="btn sm" data-act="rmFoto" data-k="${k}">Remover foto</button>`:''}
+  <label class="btn sm" style="cursor:pointer">${ic('cam',16)} ${it.thumb?'Trocar foto':'Anexar foto'}<input class="sr" type="file" accept="image/*" capture="environment" data-nc-foto data-k="${k}"></label></div></div>`:''}</div>`;
+}
+
+function rondaForm(){
+  const R=st.R,salas=R.salaIds.map(id=>byId(S.salas,id)).filter(Boolean);
+  const hasItems=Object.keys(R.itens).length>0;
+  const guia=S.tiposNC.filter(t=>t.orient);
+  const bloco=sala=>`<div class="sala-h"><h2>${esc(sala.nome)}</h2><small>${esc(sala.setor||'')}${sala.andar?' · '+esc(sala.andar):''}</small></div>`+alvos(sala).map(al=>{
+    const ks=Object.keys(R.itens).filter(k=>k.startsWith(prefix(sala.id,al)));
+    if(!ks.length)return `<div class="grp noitems"><div class="gh">${al.eq?thumbEq(al.eq):`<div class="thumb">${ic('shield',22)}</div>`}<div class="t"><b>${esc(al.n)}</b><small>Sem checklist vinculado${st.me.role==='admin'?' · vincule em Cadastros':''}</small></div></div></div>`;
+    const cal=al.eq?.calibracao?RH.calBadge(al.eq.calibracao):'';
+    return `<div class="grp"><div class="gh">${al.eq?thumbEq(al.eq):`<div class="thumb">${ic('shield',22)}</div>`}<div class="t"><b>${esc(al.n)}</b><small>${al.eq?`<span class="mono">${esc(al.eq.patrimonio||'sem patrimônio')}</span> · ${esc(al.eq.categoria||'')}`:esc(al.cl?.nome||'')}</small> ${cal}</div><button class="btn sm" data-act="allc" data-pre="${prefix(sala.id,al)}">Tudo conforme</button></div><div class="items">${ks.map(itemHtml).join('')}</div></div>`}).join('');
+  return `<div class="top"><div><h1>${esc(R.nome)}</h1><p>${salas.length} sala${salas.length===1?'':'s'} · Responsável: ${R.resp?esc(userName(R.resp)):'todos os inspetores'} · Inspetor: ${esc(st.me.nome)}</p></div>
+  <button class="btn" data-act="cancelRonda">${ic('x',16)} Descartar ronda</button></div>
+  <div class="rhead"><div class="prog"><b id="prog-t"></b><div class="bar"><i id="prog-b" style="width:0"></i></div></div><button class="btn pri" data-act="submitRonda" id="btn-sub">${ic('check',16)} Finalizar ronda</button></div>
+  ${guia.length?`<details class="card guide"><summary>Orientações por tipo de não conformidade</summary><div class="guide-l">${guia.map(t=>`<div><b>${esc(t.nome)}</b> ${RH.sevPill(t.sev||2)}<p>${esc(t.orient)}</p></div>`).join('')}</div></details>`:''}
+  ${hasItems?salas.map(bloco).join(''):empty('Esta ronda não tem itens de checklist','Vincule checklists às salas e aos equipamentos em Cadastros.')}
+  <div class="card"><label class="field"><span>Observações gerais da ronda (opcional)</span><textarea id="r-obs" data-robs>${esc(R.obs)}</textarea></label></div>`;
+}
+RH.rondaForm=rondaForm;
+
+function progress(){
+  const v=Object.values(st.R.itens),t=v.length,a=v.filter(x=>x.r).length,n=v.filter(x=>x.r==='NC').length;
+  const pt=$('#prog-t');if(!pt)return;pt.textContent=`${a} de ${t} itens respondidos${n?` · ${n} não conformidade${n>1?'s':''}`:''}`;$('#prog-b').style.width=(t?a/t*100:0)+'%'}
+RH.rondaProgress=progress;
+function repaint(k){const e=document.getElementById('it-'+k);if(e)e.outerHTML=itemHtml(k);progress()}
+
+async function submitRonda(){
+  const R=st.R,its=Object.entries(R.itens);
+  document.querySelectorAll('.it.miss').forEach(e=>e.classList.remove('miss'));
+  if(!its.length){toast('Não há itens para registrar nesta ronda.','bad');return}
+  const un=its.filter(([,i])=>!i.r);
+  if(un.length){un.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+un[0][0])?.scrollIntoView({block:'center'});toast(`Faltam ${un.length} item(ns) sem resposta.`,'bad');return}
+  const bad=its.filter(([,i])=>i.r==='NC'&&(!i.tipoId||!(i.desc||'').trim()));
+  if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
+  const b=$('#btn-sub');b.disabled=true;
+  /* ts, execId e ids ficam guardados na ronda: se o salvamento falhar no meio e o inspetor
+     tentar de novo, os mesmos documentos são sobrescritos (nada fica duplicado) */
+  const sub=R.sub||(R.sub={ts:Date.now(),execId:'x'+RH.uid(),ids:{}});
+  const ts=sub.ts,execId=sub.execId,mk=(k,pre)=>sub.ids[k]||(sub.ids[k]=pre+RH.uid());
+  let totNC=0;
+  const ok=await RH.safe(async()=>{
+    totNC=0;
+    for(const sid of R.salaIds){
+      const sala=byId(S.salas,sid),mine=its.filter(([,i])=>i.sid===sid);
+      if(!sala||!mine.length)continue;
+      const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
+      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala.id,salaNome:sala.nome,setor:sala.setor||'',inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
+        pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
+      for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
+        const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
+        if(i.full){fotoId=mk('f:'+k,'f');await RH.put('fotos',fotoId,{data:i.full})}
+        const sev=+i.sev||tipo?.sev||2;
+        await RH.put('ncs',mk('n:'+k,'n'),{ts,rondaId:rid,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala.id,salaNome:sala.nome,setor:sala.setor||'',eqId:eq?.id||null,eqNome:eq?.nome||'',itemTexto:i.t,
+          tipoId:i.tipoId,tipoNome:tipo?.nome||'',orient:tipo?.orient||'',sev,desc:i.desc.trim(),thumb:i.thumb||null,fotoId,status:'aberta',resp:sala.responsavelId||null,prazo:ts+([0,14,7,3,1][sev])*864e5,inspNome:st.me.nome});
+        totNC++;
+      }
+    }return true});
+  if(ok){st.R=null;toast(totNC?`Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.`:'Ronda registrada sem não conformidades.');RH.go(RH.access.can('historico')?'historico':'ronda')}
+  else b.disabled=false;
+}
+
+/* ---------- eventos ---------- */
+Object.assign(RH.ACT,{
+  pickRonda:el=>startRonda(el.dataset.id),
+  resumeRonda:()=>RH.renderView(true),
+  cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){st.R=null;RH.renderView(true)}},
+  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k)},
+  allc:el=>{Object.keys(st.R.itens).filter(k=>k.startsWith(el.dataset.pre)).forEach(k=>{if(st.R.itens[k].r!=='NC'){st.R.itens[k].r='C';repaint(k)}})},
+  rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k)},
+  submitRonda
+});
+RH.ON_CHANGE.push(async el=>{
+  if(el.dataset.nc){
+    const it=st.R.itens[el.dataset.k],f=el.dataset.nc;it[f]=el.value;
+    if(f==='tipoId'){const t=byId(S.tiposNC,el.value);if(t)it.sev=t.sev;repaint(el.dataset.k)} /* mostra a orientação do tipo */
+    return true}
+  if(el.dataset.ncFoto!=null){
+    if(el.files[0]){try{Object.assign(st.R.itens[el.dataset.k],await RH.processImg(el.files[0]));repaint(el.dataset.k)}catch(err){toast('Não foi possível ler a imagem.','bad')}}
+    return true}
+  return false});
+RH.ON_INPUT.push(el=>{
+  if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;return true}
+  if(el.dataset.robs!=null){st.R.obs=el.value;return true}
+  return false});
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Histórico de rondas: uma linha por execução (ronda), com o detalhe por sala.
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const {esc,S,HF,byId,pc,fdt,ic,empty,modal}=RH;
+
+RH.pages.historico=()=>{
+  const from=Date.now()-HF.periodo*864e5;
+  const ex=RH.execs(S.rondas.filter(r=>r.ts>=from&&(!HF.ronda||r.modeloId===HF.ronda)));
+  const meta=+S.cfg.meta||95;
+  return `<div class="top"><div><h1>Histórico de rondas</h1><p>${ex.length} ronda${ex.length===1?'':'s'} no período</p></div>
+  <div class="filters"><label class="field"><span>Período</span><select data-set="HF:periodo" data-num="1">${[7,30,90,365].map(d=>`<option value="${d}" ${d===HF.periodo?'selected':''}>Últimos ${d} dias</option>`).join('')}</select></label>
+  <label class="field"><span>Ronda</span><select data-set="HF:ronda"><option value="">Todas as rondas</option>${[...S.modelos].sort((a,b)=>a.nome.localeCompare(b.nome)).map(m=>`<option value="${m.id}" ${m.id===HF.ronda?'selected':''}>${esc(m.nome)}</option>`).join('')}</select></label></div></div>
+  ${ex.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Ronda</th><th>Inspetor</th><th>Conformidade</th><th>Itens</th><th>NCs</th></tr></thead><tbody>${ex.slice(0,200).map(e=>`<tr data-act="rondaOpen" data-id="${esc(e.id)}"><td class="num">${fdt(e.ts)}</td><td><b>${esc(e.nome)}</b><small>${e.docs.length} sala${e.docs.length===1?'':'s'}</small></td><td>${esc(e.inspNome)}</td><td class="num"><span class="pill ${e.pct>=meta?'okp':'st-aberta'}">${pc(e.pct)}</span></td><td class="num">${e.c+e.nc+e.na}</td><td class="num">${e.nc||'—'}</td></tr>`).join('')}</tbody></table></div>`:empty('Nenhuma ronda no período','Registre uma ronda em Nova ronda.')}`;
+};
+
+function openRonda(id){
+  const e=RH.execs(S.rondas.filter(r=>(r.execId||r.id)===id))[0];if(!e)return;
+  const porSala=e.docs.map(r=>{
+    const g={};(r.itens||[]).forEach(i=>{(g[i.a+i.i]=g[i.a+i.i]||{n:i.n,l:[]}).l.push(i)});
+    return `<div><h4 style="font-size:15px;border-bottom:2px solid var(--brand);padding-bottom:4px">${esc(r.salaNome)} <small>${esc(r.setor||'')} · ${pc(r.pct)}</small></h4>
+    ${Object.values(g).map(x=>`<div style="margin-top:10px"><b>${esc(x.n)}</b><div style="margin-top:4px">${x.l.map(i=>`<div style="display:flex;gap:10px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(i.t)}</span><span class="pill ${i.r==='C'?'okp':i.r==='NC'?'st-aberta':'off'}">${i.r==='C'?'Conforme':i.r==='NC'?'Não conforme':'N/A'}</span></div>`).join('')}</div></div>`).join('')}</div>`}).join('');
+  const obs=e.docs.map(r=>r.obs).find(Boolean);
+  modal(`<div class="mh"><div><h3 style="font-size:16px">${esc(e.nome)}</h3><small>${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</small></div><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
+  <div class="mb"><div class="legend"><span>Conformidade <b>${pc(e.pct)}</b></span><span>Conformes <b>${e.c}</b></span><span>Não conformes <b>${e.nc}</b></span><span>N/A <b>${e.na}</b></span></div>
+  ${obs?`<div><b>Observações</b><p style="margin:4px 0 0">${esc(obs)}</p></div>`:''}
+  ${porSala}</div>`,true);
+}
+RH.ACT.rondaOpen=el=>openRonda(el.dataset.id);
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Não conformidades: lista com filtros, tratamento (situação, responsável, prazo,
+   ação corretiva) e exclusão (administrador e gestor, com confirmação).
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const {$,esc,S,NF,st,byId,userName,fd,fdt,ic,empty,sevPill,stPill,ST,SEV,toast,modal,closeModal}=RH;
+
+function filtrar(){
+  const q=NF.q.trim().toLowerCase();
+  return S.ncs.filter(n=>(NF.status==='todas'||(NF.status==='abertas'?n.status!=='resolvida':n.status===NF.status))&&(!NF.sev||n.sev==NF.sev)&&(!NF.setor||n.setor===NF.setor)&&(!q||[n.desc,n.salaNome,n.eqNome,n.tipoNome,n.itemTexto,n.modeloNome].join(' ').toLowerCase().includes(q)))}
+
+function lista(){
+  const l=filtrar();if(!l.length)return empty('Nenhuma não conformidade com estes filtros');
+  return `<div class="ncs">${l.slice(0,150).map(n=>{const late=n.status!=='resolvida'&&n.prazo&&n.prazo<Date.now();
+    return `<button class="nc s${n.sev}" data-act="ncOpen" data-id="${n.id}">${n.thumb?`<img class="thumb" src="${n.thumb}" alt="">`:`<div class="thumb">${ic('alert',20)}</div>`}
+    <div style="min-width:0"><b>${esc(n.tipoNome||'Não conformidade')} · ${esc(n.eqNome||n.salaNome)}</b><p>${esc(n.desc||n.itemTexto)}</p><div class="meta"><span>${esc(n.salaNome)}${n.setor?' · '+esc(n.setor):''}</span>${n.modeloNome?`<span>Ronda: ${esc(n.modeloNome)}</span>`:''}<span>${fdt(n.ts)}</span><span>Resp.: ${esc(userName(n.resp))}</span>${n.status!=='resolvida'&&n.prazo?`<span style="${late?'color:var(--bad);font-weight:600':''}">Prazo ${fd(n.prazo)}${late?' (vencido)':''}</span>`:''}</div></div>
+    <div class="right">${sevPill(n.sev)}${stPill(n.status)}</div></button>`}).join('')}</div>${l.length>150?`<p class="hint">Mostrando 150 de ${l.length}. Use os filtros para refinar.</p>`:''}`}
+RH.ncList=lista;
+
+RH.pages.ncs=()=>{
+  const setores=[...new Set(S.ncs.map(n=>n.setor).filter(Boolean))].sort();
+  const opened=S.ncs.filter(n=>n.status!=='resolvida').length;
+  return `<div class="top"><div><h1>Não conformidades</h1><p>${opened} em aberto · ${S.ncs.length} registradas</p></div></div>
+  <div class="filters" style="margin-bottom:14px"><div class="chips" role="group" aria-label="Situação">${[['abertas','Em aberto'],['aberta','Abertas'],['tratamento','Em tratamento'],['resolvida','Resolvidas'],['todas','Todas']].map(([v,l])=>`<button class="chip" data-act="ncStatus" data-v="${v}" aria-pressed="${NF.status===v}">${l}</button>`).join('')}</div></div>
+  <div class="filters" style="margin-bottom:14px"><label class="field"><span>Severidade</span><select data-set="NF:sev"><option value="">Todas</option>${[4,3,2,1].map(s=>`<option value="${s}" ${NF.sev==s?'selected':''}>${SEV[s]}</option>`).join('')}</select></label>
+  <label class="field"><span>Setor</span><select data-set="NF:setor"><option value="">Todos</option>${setores.map(s=>`<option ${NF.setor===s?'selected':''}>${esc(s)}</option>`).join('')}</select></label>
+  <label class="field" style="flex:1;min-width:200px"><span>Buscar</span><input type="text" id="nc-q" data-set="NF:q" data-live="nc" value="${esc(NF.q)}" placeholder="Sala, equipamento, ronda, descrição…"></label></div>
+  <div id="nc-list">${lista()}</div>`;
+};
+
+function openNC(id){
+  const n=byId(S.ncs,id);if(!n)return;
+  const edit=RH.access.canEditNC(),canDel=RH.access.canDeleteNC();
+  const users=S.users.filter(u=>u.ativo!==false);
+  const orient=n.orient||byId(S.tiposNC,n.tipoId)?.orient||'';
+  modal(`<div class="mh"><div><h3 style="font-size:16px">${esc(n.tipoNome||'Não conformidade')}</h3><small>${esc(n.salaNome)}${n.eqNome?' · '+esc(n.eqNome):''}</small></div><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
+  <form id="f-nc" data-id="${n.id}"><div class="mb">
+  ${n.fotoId?`<div id="nc-foto">${n.thumb?`<img class="big-img" src="${n.thumb}" alt="Foto da não conformidade" style="max-height:200px;object-fit:cover">`:''}<small>Carregando foto…</small></div>`:''}
+  ${RH.orientBox(orient)}
+  <dl class="kv"><dt>Descrição</dt><dd>${esc(n.desc)}</dd><dt>Item do checklist</dt><dd>${esc(n.itemTexto||'—')}</dd>${n.modeloNome?`<dt>Ronda</dt><dd>${esc(n.modeloNome)}</dd>`:''}<dt>Registrada</dt><dd>${fdt(n.ts)} por ${esc(n.inspNome||'—')}</dd><dt>Severidade</dt><dd>${sevPill(n.sev)}</dd></dl>
+  <div class="fg"><label class="field"><span>Situação</span><select name="status" ${edit?'':'disabled'}>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${n.status===k?'selected':''}>${v}</option>`).join('')}</select></label>
+  <label class="field"><span>Responsável pela correção</span><select name="resp" ${edit?'':'disabled'}><option value="">—</option>${users.map(u=>`<option value="${u.id}" ${n.resp===u.id?'selected':''}>${esc(u.nome)}</option>`).join('')}</select></label>
+  <label class="field"><span>Prazo</span><input type="date" name="prazo" value="${n.prazo?RH.ymd(n.prazo):''}" ${edit?'':'disabled'}></label>
+  <label class="field"><span>Severidade</span><select name="sev" ${edit?'':'disabled'}>${[1,2,3,4].map(s=>`<option value="${s}" ${n.sev==s?'selected':''}>${s} · ${SEV[s]}</option>`).join('')}</select></label>
+  <label class="field full"><span>Ação corretiva / resolução</span><textarea name="resolucao" ${edit?'':'disabled'} placeholder="O que foi feito para corrigir?">${esc(n.resolucao||'')}</textarea></label></div>
+  ${n.resolvidoEm?`<small>Resolvida em ${fdt(n.resolvidoEm)}</small>`:''}<div class="err" id="nc-err" role="alert"></div></div>
+  <div class="mf">${canDel?`<button type="button" class="btn bad sp" data-act="delNC" data-id="${n.id}" id="btn-delnc">${ic('trash',16)} Excluir</button>`:''}${edit?`<button type="button" class="btn" data-act="closeModal">Cancelar</button><button class="btn pri" type="submit">Salvar</button>`:`<button type="button" class="btn" data-act="closeModal">Fechar</button>`}</div></form>`,true);
+  if(n.fotoId)st.db.doc('fotos/'+n.fotoId).get().then(s=>{const b=$('#nc-foto');if(!b)return;b.innerHTML=s.exists?`<img class="big-img" src="${esc(s.data().data)}" alt="Foto da não conformidade">`:'<small>Foto indisponível.</small>'}).catch(()=>{});
+}
+
+async function saveNC(f){
+  const n=byId(S.ncs,f.dataset.id);if(!n||!RH.access.canEditNC())return;
+  const fm=new FormData(f),situ=fm.get('status');
+  const d={status:situ,resp:fm.get('resp')||null,sev:+fm.get('sev'),resolucao:(fm.get('resolucao')||'').trim(),prazo:fm.get('prazo')?new Date(fm.get('prazo')+'T12:00:00').getTime():null};
+  if(situ==='resolvida'&&!n.resolvidoEm)d.resolvidoEm=Date.now();
+  if(situ!=='resolvida'&&n.resolvidoEm)d.resolvidoEm=null;
+  if(situ==='resolvida'&&!d.resolucao){toast('Descreva a ação corretiva para marcar como resolvida.','bad');return}
+  const ok=await RH.safe(async()=>{await RH.upd('ncs',n.id,d);return true});
+  if(ok){closeModal();toast('Não conformidade atualizada.')}
+}
+
+/* exclusão em dois toques: o 1º toque pede confirmação, o 2º exclui (a foto também) */
+async function delNC(el){
+  if(!RH.access.canDeleteNC())return;
+  if(!el.dataset.armed){el.dataset.armed='1';el.textContent='Confirmar exclusão';return}
+  const n=byId(S.ncs,el.dataset.id);if(!n)return;
+  const ok=await RH.safe(async()=>{await RH.del('ncs',n.id);if(n.fotoId)await RH.del('fotos',n.fotoId);return true});
+  if(ok){closeModal();toast('Não conformidade excluída.')}
+}
+
+Object.assign(RH.ACT,{
+  ncOpen:el=>openNC(el.dataset.id),
+  ncStatus:el=>{NF.status=el.dataset.v;RH.renderView()},
+  delNC:el=>delNC(el)
+});
+RH.ON_INPUT.push(el=>{if(el.dataset.live==='nc'){NF.q=el.value;$('#nc-list').innerHTML=lista();return true}return false});
+RH.ON_SUBMIT['f-nc']=saveNC;
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Cadastros (somente administrador): Rondas, Salas, Equipamentos, Checklists,
+   Tipos de NC, Usuários e dados do hospital / backup.
+   Cada entidade é descrita em ENT (colunas da tabela + campos do formulário).
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const {$,esc,uid,S,st,byId,userName,ic,empty,toast,modal,closeModal,sevPill,actPill,ROLE,SEV}=RH;
+
+const optsSetor=()=>[...new Set(S.salas.map(s=>s.setor).filter(Boolean))];
+const usersAtivos=()=>S.users.filter(u=>u.ativo!==false);
+
+/* quem pode realizar a ronda: texto + selo */
+function acessoRonda(m){
+  if(!m.responsavelId)return '<span class="pill okp">Todos os inspetores</span>';
+  const u=byId(S.users,m.responsavelId);
+  if(!u||u.ativo===false)return `<span class="pill late">Responsável inativo</span>`;
+  return `<span class="pill inf">Somente ${esc(u.nome)}</span>`;
+}
+
+const ENT={
+ modelos:{col:'modelos',nome:'Rondas',um:'ronda',
+  cols:[['Nome da ronda',m=>`<b>${esc(m.nome)}</b><small>${esc(m.descricao||'')}</small>`],['Salas',m=>(m.salaIds||[]).map(id=>byId(S.salas,id)?.nome).filter(Boolean).join(', ')||'—'],['Quem realiza',acessoRonda],['Periodicidade',m=>(+m.freq||24)+' h'],['Situação',actPill]],
+  fields:[
+   {k:'nome',l:'Nome da ronda',req:1,full:1,hint:'Ex.: Ronda UTI · plantão diurno'},
+   {k:'descricao',l:'Descrição / roteiro (opcional)',full:1},
+   {k:'responsavelId',l:'Responsável pela ronda',t:'select',full:1,opts:()=>usersAtivos().map(u=>[u.id,u.nome+(u.cargo?' · '+u.cargo:'')]),blank:'Sem responsável (todos os inspetores)',
+    hint:'Somente o responsável escolhido vê e realiza esta ronda. Com "Sem responsável", todos os inspetores podem realizá-la.'},
+   {k:'freq',l:'Periodicidade (horas)',t:'number',def:24,hint:'Depois deste prazo sem realização, a ronda aparece "em atraso".'},
+   {k:'ativo',l:'Ronda ativa',t:'check',def:true},
+   {k:'salaIds',l:'Salas incluídas na ronda',t:'salas',full:1}]},
+ salas:{col:'salas',nome:'Salas',um:'sala',
+  cols:[['Sala',s=>`<b>${esc(s.nome)}</b><small>${esc(s.andar||'')}</small>`],['Setor',s=>esc(s.setor||'—')],['Responsável pelo ambiente',s=>esc(userName(s.responsavelId))],['Equipamentos',s=>S.equipamentos.filter(e=>e.salaId===s.id).length],['Rondas',s=>S.modelos.filter(m=>(m.salaIds||[]).includes(s.id)).length||'<span class="pill late">Fora de rondas</span>'],['Situação',actPill]],
+  fields:[{k:'nome',l:'Nome da sala / ambiente',req:1,full:1},{k:'setor',l:'Setor',req:1,list:optsSetor,hint:'Ex.: UTI, Centro Cirúrgico, Emergência'},{k:'andar',l:'Andar / bloco'},
+   {k:'responsavelId',l:'Responsável pelo ambiente (recebe as NCs)',t:'select',full:1,opts:()=>usersAtivos().map(u=>[u.id,u.nome+(u.cargo?' · '+u.cargo:'')]),blank:'Sem responsável'},
+   {k:'checklistId',l:'Checklist do ambiente',t:'select',full:1,opts:()=>S.checklists.filter(c=>c.tipo==='sala').map(c=>[c.id,c.nome]),blank:'Nenhum'},
+   {k:'ativo',l:'Sala ativa (aparece nas rondas)',t:'check',def:true,full:1}],
+  canDel:s=>S.equipamentos.some(e=>e.salaId===s.id)?'Mova ou exclua os equipamentos desta sala antes. Ou apenas desative a sala.':S.modelos.some(m=>(m.salaIds||[]).includes(s.id))?'Esta sala faz parte de uma ronda. Remova-a da ronda antes de excluir. Ou apenas desative a sala.':''},
+ equipamentos:{col:'equipamentos',nome:'Equipamentos',um:'equipamento',
+  cols:[['Equipamento',e=>`<div style="display:flex;gap:10px;align-items:center">${RH.thumbEq(e)}<div><b>${esc(e.nome)}</b><small class="mono">${esc(e.patrimonio||'')}</small></div></div>`],['Categoria',e=>esc(e.categoria||'—')],['Sala',e=>esc(byId(S.salas,e.salaId)?.nome||'—')],['Calibração',e=>e.calibracao?RH.calBadge(e.calibracao):'—'],['Situação',actPill]],
+  fields:[{k:'nome',l:'Nome do equipamento',req:1},{k:'patrimonio',l:'Nº de patrimônio / série'},{k:'categoria',l:'Categoria',list:()=>[...new Set(S.equipamentos.map(e=>e.categoria).filter(Boolean))],hint:'Ex.: Suporte à vida, Esterilização'},
+   {k:'salaId',l:'Sala',t:'select',req:1,opts:()=>S.salas.map(s=>[s.id,s.nome]),blank:'Selecione…'},
+   {k:'checklistId',l:'Checklist do equipamento',t:'select',opts:()=>S.checklists.filter(c=>c.tipo==='equipamento').map(c=>[c.id,c.nome]),blank:'Nenhum'},
+   {k:'calibracao',l:'Validade da calibração',t:'date'},{k:'foto',l:'Foto do equipamento',t:'photo',full:1},
+   {k:'obs',l:'Observações',t:'textarea',full:1},{k:'ativo',l:'Equipamento ativo',t:'check',def:true,full:1}]},
+ checklists:{col:'checklists',nome:'Checklists',um:'checklist',
+  cols:[['Checklist',c=>`<b>${esc(c.nome)}</b>`],['Aplica-se a',c=>c.tipo==='sala'?'Ambiente (sala)':'Equipamento'],['Itens',c=>(c.itens||[]).length],['Em uso',c=>S.salas.filter(s=>s.checklistId===c.id).length+S.equipamentos.filter(e=>e.checklistId===c.id).length+' vínculos']],
+  fields:[{k:'nome',l:'Nome do checklist',req:1,full:1},{k:'tipo',l:'Aplica-se a',t:'select',req:1,opts:()=>[['sala','Ambiente (sala)'],['equipamento','Equipamento']]},{k:'itens',l:'Itens a verificar',t:'items',full:1}],
+  canDel:c=>S.salas.some(s=>s.checklistId===c.id)||S.equipamentos.some(e=>e.checklistId===c.id)?'Este checklist está vinculado a salas ou equipamentos. Troque o vínculo antes de excluir.':''},
+ tiposNC:{col:'tiposNC',nome:'Tipos de NC',um:'tipo de não conformidade',
+  cols:[['Tipo',t=>`<b>${esc(t.nome)}</b>`],['Severidade padrão',t=>sevPill(t.sev||2)],['Orientação / ação esperada (exibida ao inspetor)',t=>t.orient?`<span style="white-space:normal">${esc(t.orient)}</span>`:'<small>—</small>'],['Registros',t=>S.ncs.filter(n=>n.tipoId===t.id).length]],
+  fields:[{k:'nome',l:'Nome',req:1,full:1},{k:'sev',l:'Severidade padrão',t:'select',req:1,opts:()=>[1,2,3,4].map(s=>[s,s+' · '+SEV[s]]),def:2},
+   {k:'orient',l:'Orientação / ação esperada',t:'textarea',full:1,hint:'Aparece como alerta para o inspetor ao registrar este tipo de não conformidade durante a ronda.'}]},
+ users:{col:'users',nome:'Responsáveis e usuários',um:'usuário',
+  cols:[['Nome',u=>`<b>${esc(u.nome)}</b><small>${esc(u.cargo||'')}</small>`],['Usuário',u=>`<span class="mono">${esc(u.login||'—')}</span>`],['Perfil',u=>ROLE[u.role]||'—'],['Acesso',u=>u.hash?actPill(u):'<span class="pill off">Sem senha</span>']],
+  fields:[{k:'nome',l:'Nome completo',req:1},{k:'cargo',l:'Cargo / função',hint:'Ex.: Enfermeira, Engenheiro clínico'},{k:'login',l:'Usuário de acesso',req:1},{k:'senha',l:'Senha',t:'password',hint:'Deixe em branco para manter a atual'},
+   {k:'role',l:'Perfil de acesso',t:'select',req:1,opts:()=>Object.entries(ROLE),def:'inspetor',full:1,hint:'Administrador: tudo. Gestor: painel, histórico e tratamento de NCs. Inspetor: apenas a tela Nova ronda.'},{k:'ativo',l:'Usuário ativo',t:'check',def:true,full:1}],
+  canDel:u=>u.id===st.me.id?'Você não pode excluir o próprio usuário.':(u.role==='admin'&&S.users.filter(x=>x.role==='admin'&&x.ativo!==false).length<2?'É o único administrador ativo.':(S.modelos.some(m=>m.responsavelId===u.id)?'Este usuário é responsável por rondas. Troque o responsável das rondas antes de excluir. Ou apenas desative o usuário.':''))}
+};
+RH.ENT=ENT;
+
+/* ---------- backup ---------- */
+function backupCard(){
+  const L=RH.store,rem=L.mode==='remote';
+  return `<div class="card" style="max-width:560px;margin-top:14px"><h3>${rem?'Base compartilhada e backup':'Backup dos dados'}</h3>
+  ${rem?`<p style="margin:0 0 6px;color:var(--ink2)"><span class="pill okp"><i></i>Conectado ao banco compartilhado</span><br>Todos os usuários da equipe veem os mesmos dados, atualizados a cada poucos segundos. Mesmo assim, exporte um backup de vez em quando.</p>`
+  :`<p style="margin:0 0 6px;color:var(--ink2)">Neste modo os dados ficam salvos só no navegador deste aparelho e não são compartilhados. Para a equipe usar a mesma base, configure o banco compartilhado (veja o LEIA-ME). Exporte backups com frequência.</p>`}
+  ${L.volatile()?'<p class="err">Atenção: este navegador bloqueou o armazenamento. Os dados serão perdidos ao fechar a aba.</p>':''}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn" data-act="exportBackup">Exportar backup (.json)</button><label class="btn" style="cursor:pointer">Importar backup<input class="sr" type="file" accept="application/json,.json" data-import></label>${rem?'<button class="btn" data-act="changeCode">Trocar código de acesso neste aparelho</button>':''}</div></div>`;
+}
+
+/* ---------- página ---------- */
+RH.pages.cadastros=()=>{
+  const tabs=[...Object.keys(ENT),'hospital'],nm=k=>k==='hospital'?'Hospital':ENT[k].nome;
+  let body='';
+  if(st.cadTab==='hospital'){
+    const demo=['users','salas','equipamentos','checklists','tiposNC','modelos','rondas','ncs'].reduce((n,c)=>n+S[c].filter(x=>x.demo).length,0);
+    body=`<form id="f-cfg" class="card" style="max-width:560px;display:grid;gap:14px"><h3>Dados do hospital</h3><label class="field"><span>Nome do hospital</span><input type="text" name="hospital" value="${esc(S.cfg.hospital||'')}" required></label>
+    <label class="field"><span>Meta de conformidade (%)</span><input type="number" name="meta" min="50" max="100" value="${+S.cfg.meta||95}"></label><div><button class="btn pri" type="submit">Salvar</button></div></form>
+    <div class="card" style="max-width:560px;margin-top:14px"><h3>Dados de exemplo</h3><p style="margin:0 0 12px;color:var(--ink2)">${demo?`Há ${demo} registros de exemplo no sistema. Remova-os antes de começar a usar de verdade.`:'Carregue salas, equipamentos, checklists, rondas e 4 semanas de execuções fictícias para conhecer o painel.'}</p>
+    <div class="prog-seed" id="seed-prog" hidden><i></i></div>
+    ${demo?`<button class="btn bad" data-act="wipeDemo">Remover dados de exemplo</button>`:`<button class="btn" data-act="seedDemo">Carregar dados de exemplo</button>`}</div>${backupCard()}`;
+  }else{
+    const E=ENT[st.cadTab],rows=[...S[E.col]].sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+    body=`<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><small>${rows.length} cadastrado${rows.length===1?'':'s'} · clique em uma linha para editar</small><button class="btn pri" data-act="newEnt">${ic('plus',16)} Adicionar ${E.um}</button></div>
+    ${rows.length?`<div class="tw"><table><thead><tr>${E.cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr data-act="editEnt" data-id="${r.id}">${E.cols.map(c=>`<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:empty(`Nenhum cadastro em ${E.nome}`,'Use o botão Adicionar para criar o primeiro.')}`;
+  }
+  return `<div class="top"><div><h1>Cadastros</h1><p>Rondas, salas, equipamentos, checklists, tipos de não conformidade e usuários.</p></div></div>
+  <div class="tabs" role="tablist">${tabs.map(k=>`<button role="tab" data-act="cadTab" data-k="${k}" aria-selected="${st.cadTab===k}">${nm(k)}</button>`).join('')}</div>${body}`;
+};
+
+/* ---------- formulário ---------- */
+const fotoPrev=()=>st.M.foto.thumb&&!st.M.foto.remove?`<img class="thumb" style="width:72px;height:72px" src="${st.M.foto.thumb}" alt="Foto atual">`:`<div class="thumb" style="width:72px;height:72px">${ic('dev',26)}</div>`;
+const itemsHtml=()=>st.M.items.map((it,i)=>`<div class="irow"><input type="text" data-itx="${i}" value="${esc(it.t)}" placeholder="Ex.: Equipamento limpo e sem avarias" aria-label="Item ${i+1}"><button type="button" class="ic-btn" data-act="itUp" data-i="${i}" aria-label="Subir">${ic('up',14)}</button><button type="button" class="ic-btn" data-act="itDn" data-i="${i}" aria-label="Descer">${ic('dn',14)}</button><button type="button" class="ic-btn" data-act="itDel" data-i="${i}" aria-label="Remover">${ic('trash',14)}</button></div>`).join('')||'<div class="hint" style="margin-bottom:8px">Nenhum item. Adicione os pontos que o inspetor deve verificar.</div>';
+
+function salasPicker(f,v){
+  const sel=new Set(Array.isArray(v)?v:[]);
+  const salas=S.salas.filter(s=>s.ativo!==false||sel.has(s.id)).sort((a,b)=>(a.setor||'').localeCompare(b.setor||'')||a.nome.localeCompare(b.nome));
+  let last=null,h='';
+  salas.forEach(s=>{if(s.setor!==last){last=s.setor;h+=`<div class="gt">${esc(s.setor||'Sem setor')}</div>`}
+    h+=`<label class="chk"><input type="checkbox" data-sala value="${s.id}" ${sel.has(s.id)?'checked':''}> ${esc(s.nome)}${s.andar?` <small>${esc(s.andar)}</small>`:''}${s.ativo===false?' <small>(inativa)</small>':''}</label>`});
+  return `<div class="full"><span class="hint" style="font-weight:600;color:var(--ink2)">${esc(f.l)} *</span><div class="chk-list" id="salas-pick" style="margin-top:6px">${h||'<small>Cadastre salas antes de criar uma ronda.</small>'}</div><small>As salas são percorridas na ordem exibida, com seus equipamentos e checklists.</small></div>`}
+
+function fieldHtml(f,v){
+  const cls=f.full?'field full':'field',id='ff-'+f.k;
+  if(f.t==='check')return `<label class="chk ${f.full?'full':''}"><input type="checkbox" name="${f.k}" id="${id}" ${v?'checked':''}> ${esc(f.l)}</label>`;
+  if(f.t==='salas')return salasPicker(f,v);
+  if(f.t==='items')return `<div class="full"><span class="hint" style="font-weight:600;color:var(--ink2)">${esc(f.l)}</span><div id="items" style="margin-top:8px">${itemsHtml()}</div><button type="button" class="btn sm" data-act="itAdd">${ic('plus',14)} Adicionar item</button></div>`;
+  if(f.t==='photo')return `<div class="full"><span class="hint" style="font-weight:600;color:var(--ink2)">${esc(f.l)}</span><div style="display:flex;gap:12px;align-items:center;margin-top:8px;flex-wrap:wrap"><div id="foto-prev">${fotoPrev()}</div><label class="btn sm" style="cursor:pointer">${ic('cam',16)} Escolher imagem<input class="sr" type="file" accept="image/*" id="ff-foto" data-ent-foto></label><button type="button" class="btn sm" data-act="rmEntFoto">Remover</button></div></div>`;
+  let inp;
+  if(f.t==='select')inp=`<select name="${f.k}" id="${id}" ${f.req?'required':''}>${f.blank!==undefined?`<option value="">${f.blank}</option>`:''}${f.opts().map(([o,l])=>`<option value="${esc(o)}" ${String(v)===String(o)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  else if(f.t==='textarea')inp=`<textarea name="${f.k}" id="${id}">${esc(v||'')}</textarea>`;
+  else if(f.t==='password')inp=`<div style="display:flex;gap:8px"><input type="text" class="pw" name="${f.k}" id="${id}" value="" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" style="flex:1"><button type="button" class="btn sm" data-act="genPw" style="min-height:38px">Gerar senha forte</button></div>`;
+  else inp=`<input type="${f.t||'text'}" name="${f.k}" id="${id}" value="${esc(v??'')}" ${f.req?'required':''} ${f.list?`list="dl-${f.k}"`:''}>${f.list?`<datalist id="dl-${f.k}">${f.list().map(o=>`<option value="${esc(o)}">`).join('')}</datalist>`:''}`;
+  return `<label class="${cls}"><span>${esc(f.l)}${f.req?' *':''}</span>${inp}${f.hint?`<small>${esc(f.hint)}</small>`:''}</label>`;
+}
+
+function openEnt(ent,id){
+  const E=ENT[ent],d=id?{...byId(S[E.col],id)}:{};
+  st.M={ent,id,items:(d.itens||[]).map(x=>({...x})),foto:{thumb:d.thumb||null,fotoId:d.fotoId||null,full:null,remove:false},armed:false};
+  if(ent==='checklists'&&!id&&!st.M.items.length)st.M.items=[{id:'i'+uid(),t:''}];
+  modal(`<div class="mh"><h3 style="font-size:16px">${id?'Editar':'Adicionar'} ${E.um}</h3><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
+  <form id="f-ent" autocomplete="off"><div class="mb"><div class="fg">${E.fields.map(f=>fieldHtml(f,d[f.k]??(f.def??(f.t==='check'?false:f.t==='salas'?[]:'')))).join('')}</div><div class="err" id="ent-err" role="alert"></div></div>
+  <div class="mf">${id?`<button type="button" class="btn bad sp" data-act="delEnt" id="btn-del">${ic('trash',16)} Excluir</button>`:''}<button type="button" class="btn" data-act="closeModal">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div></form>`,true);
+}
+
+async function saveEnt(form){
+  const M=st.M,E=ENT[M.ent],err=m=>{$('#ent-err').textContent=m},data={},old=M.id?byId(S[E.col],M.id):null;
+  for(const f of E.fields){
+    if(f.t==='photo')continue;
+    if(f.t==='items'){data[f.k]=M.items.filter(x=>x.t.trim()).map(x=>({id:x.id,t:x.t.trim()}));if(!data[f.k].length)return err('Adicione ao menos um item ao checklist.');continue}
+    if(f.t==='salas'){data[f.k]=[...form.querySelectorAll('[data-sala]:checked')].map(x=>x.value);if(!data[f.k].length)return err('Marque ao menos uma sala para a ronda.');continue}
+    if(f.t==='check'){data[f.k]=form.elements[f.k].checked;continue}
+    if(f.t==='password')continue;
+    let v=(form.elements[f.k].value||'').trim();
+    if(f.t==='number')v=v===''?null:+v;
+    if(f.k==='sev')v=+v;
+    if(f.req&&(v===''||v==null))return err(`Preencha o campo: ${f.l}`);
+    data[f.k]=v}
+  if(M.ent==='users'){
+    const login=data.login.toLowerCase();
+    if(S.users.some(u=>u.id!==M.id&&(u.login||'').toLowerCase()===login))return err('Já existe um usuário com este login.');
+    data.login=login;
+    const pw=form.elements.senha.value;
+    if(pw){if(pw.length<6)return err('A senha precisa ter ao menos 6 caracteres.');data.salt=uid()+uid();data.hash=await RH.hash(pw,data.salt)}
+    else if(!old?.hash)return err('Defina uma senha para este usuário.');
+    if(old&&old.id===st.me.id&&(data.ativo===false||data.role!=='admin'))return err('Você não pode remover o próprio acesso de administrador.');
+    if(old&&data.ativo===false){const n=S.modelos.filter(m=>m.responsavelId===old.id&&m.ativo!==false).length;if(n)return err(`Este usuário é responsável por ${n} ronda${n>1?'s':''}. Troque o responsável antes de desativar.`)}
+  }
+  if(M.ent==='modelos'){if(data.freq==null||data.freq<=0)data.freq=24;data.responsavelId=data.responsavelId||''}
+  const id=M.id||(E.col[0]+uid());
+  if(M.ent==='equipamentos'){
+    if(M.foto.remove){data.thumb=null;data.fotoId=null}
+    else if(M.foto.full){const fid=M.foto.fotoId||'f'+uid();const okf=await RH.safe(async()=>{await RH.put('fotos',fid,{data:M.foto.full});return true});if(!okf)return;data.thumb=M.foto.thumb;data.fotoId=fid}
+    else{data.thumb=M.foto.thumb;data.fotoId=M.foto.fotoId}
+  }
+  const rec=old?{...old,...data}:data;delete rec.id;
+  const ok=await RH.safe(async()=>{await RH.put(E.col,id,rec);return true});
+  if(ok){closeModal();toast('Cadastro salvo.')}
+}
+
+async function deleteEnt(){
+  const M=st.M,E=ENT[M.ent],d=byId(S[E.col],M.id),b=E.canDel&&E.canDel(d);
+  if(b){$('#ent-err').textContent=b;return}
+  if(!M.armed){M.armed=true;$('#btn-del').textContent='Confirmar exclusão';return}
+  if(await RH.safe(async()=>{await RH.del(E.col,M.id);return true})){closeModal();toast('Cadastro excluído.')}
+}
+
+/* ---------- eventos ---------- */
+Object.assign(RH.ACT,{
+  cadTab:el=>{st.cadTab=el.dataset.k;RH.renderView()},
+  newEnt:()=>openEnt(st.cadTab), editEnt:el=>openEnt(st.cadTab,el.dataset.id),
+  delEnt:deleteEnt,
+  itAdd:()=>{st.M.items.push({id:'i'+uid(),t:''});$('#items').innerHTML=itemsHtml();const i=document.querySelectorAll('[data-itx]');i[i.length-1]?.focus()},
+  itDel:el=>{st.M.items.splice(+el.dataset.i,1);$('#items').innerHTML=itemsHtml()},
+  itUp:el=>{const i=+el.dataset.i,M=st.M;if(i>0){[M.items[i-1],M.items[i]]=[M.items[i],M.items[i-1]];$('#items').innerHTML=itemsHtml()}},
+  itDn:el=>{const i=+el.dataset.i,M=st.M;if(i<M.items.length-1){[M.items[i+1],M.items[i]]=[M.items[i],M.items[i+1]];$('#items').innerHTML=itemsHtml()}},
+  rmEntFoto:()=>{st.M.foto.remove=true;st.M.foto.full=null;$('#foto-prev').innerHTML=fotoPrev()},
+  genPw:()=>{const A='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789',r=crypto.getRandomValues(new Uint32Array(14));const pw=[...r].map(x=>A[x%A.length]).join('');const i=document.getElementById('ff-senha');i.value=pw;i.classList.add('show');const h=i.closest('label').querySelector('small');if(h)h.textContent='Anote esta senha e entregue ao usuário. Depois de salvar ela não poderá ser exibida de novo.'},
+  seedDemo:async el=>{el.disabled=true;st.busy=true;await RH.seedDemo('#seed-prog');st.busy=false;toast('Dados de exemplo carregados.');RH.renderView(true)},
+  wipeDemo:async el=>{el.disabled=true;st.busy=true;await RH.wipeDemo();st.busy=false;RH.renderView(true)},
+  exportBackup:async el=>{el.disabled=true;try{const b=new Blob([await RH.store.exportJSON()],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ronda-hospitalar-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast('Backup exportado.')}catch(e){toast('Não foi possível exportar o backup.','bad')}el.disabled=false},
+  changeCode:()=>RH.store.changeCode()
+});
+RH.ON_CHANGE.push(async el=>{
+  if(el.dataset.import!=null){if(el.files[0]){try{const n=await RH.store.importJSON(await el.files[0].text());toast(n+' registros importados.')}catch(err){toast(err.message||'Não foi possível importar o arquivo.','bad')}el.value=''}return true}
+  if(el.dataset.entFoto!=null){if(el.files[0]){try{Object.assign(st.M.foto,await RH.processImg(el.files[0]),{remove:false});$('#foto-prev').innerHTML=fotoPrev()}catch(err){toast('Não foi possível ler a imagem.','bad')}}return true}
+  return false});
+RH.ON_INPUT.push(el=>{if(el.dataset.itx!=null){st.M.items[+el.dataset.itx].t=el.value;return true}return false});
+RH.ON_SUBMIT['f-ent']=saveEnt;
+RH.ON_SUBMIT['f-cfg']=async f=>{
+  const ok=await RH.safe(async()=>{await RH.put('config','main',{...S.cfg,hospital:f.hospital.value.trim(),meta:+f.meta.value||95});return true});
+  if(ok){toast('Dados salvos.');st.screen='';RH.renderRoot()}};
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Dados de exemplo (fictícios) para conhecer o sistema. Todos os registros recebem
+   demo:true e podem ser removidos em Cadastros → Hospital → "Remover dados de exemplo".
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const {$,S,sod,toast}=RH;
+
+function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+RH.seedDemo=async barId=>{
+  const rnd=mulberry(42),pick=a=>a[Math.floor(rnd()*a.length)],docs=[],D=(c,id,d)=>docs.push([c,id,{...d,demo:true}]);
+  const U=[['u1','Marina Albuquerque','Enfermeira RT · UTI','gestor'],['u2','Carlos Menezes','Engenheiro clínico','gestor'],['u3','Juliana Prado','Enfermeira · Centro Cirúrgico','inspetor'],['u4','Ricardo Teixeira','Técnico de segurança do trabalho','inspetor'],['u5','Patrícia Lima','Farmacêutica responsável','inspetor']];
+  U.forEach(([i,n,c,r])=>D('users','demo_'+i,{nome:n,cargo:c,login:'demo.'+i,role:r,ativo:true}));
+  const T=[['t1','Higienização deficiente',2,'Refazer a limpeza terminal e registrar.'],['t2','Equipamento com falha',3,'Retirar de uso e acionar a engenharia clínica.'],['t3','Calibração ou manutenção vencida',3,'Agendar a manutenção e sinalizar o equipamento.'],['t4','Medicamento ou insumo vencido',4,'Descartar conforme o PGRSS e repor o estoque.'],['t5','Temperatura fora da faixa',3,'Verificar o equipamento e avaliar o descarte dos itens.'],['t6','Alarme inoperante',4,'Testar, reparar e validar antes de reutilizar.'],['t7','Sinalização ou rota de fuga obstruída',2,'Desobstruir imediatamente.'],['t8','Falta de EPI',2,'Repor os EPIs no ponto de uso.'],['t9','Registro ou documentação incompleta',1,'Completar o registro com o responsável.']];
+  T.forEach(([i,n,s,o])=>D('tiposNC','demo_'+i,{nome:n,sev:s,orient:o}));
+  const CL={
+   ca:['Ambiente · Área crítica','sala',['Limpeza e organização do ambiente','Temperatura entre 20 e 24 °C','Sinalização de segurança visível','EPIs disponíveis no ponto de uso','Descarte de perfurocortantes dentro do limite','Extintor com validade em dia','Saídas e rotas de fuga desobstruídas','Pontos de gases medicinais sem vazamentos']],
+   cp:['Ambiente · Apoio e assistência','sala',['Limpeza e organização do ambiente','Lavatório com sabonete e papel toalha','Lixeiras identificadas e tampadas','Iluminação e climatização adequadas','Extintor com validade em dia']],
+   es:['Equipamento · Suporte à vida','equipamento',['Integridade física, sem avarias','Cabos e conexões íntegros','Alarmes testados e audíveis','Bateria carregada','Etiqueta de calibração em dia','Limpeza e desinfecção realizadas']],
+   et:['Equipamento · Esterilização','equipamento',['Integridade física, sem avarias','Indicador biológico/químico do ciclo conferido','Registro do ciclo preenchido','Porta e vedação íntegras','Etiqueta de manutenção em dia']],
+   er:['Equipamento · Refrigeração de medicamentos','equipamento',['Temperatura entre 2 e 8 °C','Registro de temperatura do turno','Porta e vedação íntegras','Sem alimentos ou itens estranhos']],
+   ee:['Equipamento · Carro de emergência','equipamento',['Lacre íntegro','Desfibrilador testado','Medicamentos dentro da validade','Laringoscópio e cânulas completos','Checklist de conferência assinado']]};
+  Object.entries(CL).forEach(([k,[n,t,it]])=>D('checklists','demo_c'+k,{nome:n,tipo:t,itens:it.map((x,j)=>({id:'i'+j,t:x}))}));
+  const SL=[['s1','UTI Adulto 01','UTI','2º andar','u1','ca',.09],['s2','UTI Adulto 02','UTI','2º andar','u1','ca',.05],['s3','UTI Neonatal','UTI','2º andar','u1','ca',.04],['s4','Centro Cirúrgico · Sala 1','Centro Cirúrgico','3º andar','u3','ca',.07],['s5','Centro Cirúrgico · Sala 2','Centro Cirúrgico','3º andar','u3','ca',.12],['s6','Emergência · Sala Vermelha','Emergência','Térreo','u4','ca',.1],['s7','Enfermaria 3A','Enfermaria','3º andar','u4','cp',.06],['s8','Farmácia Central','Farmácia','1º andar','u5','cp',.08],['s9','Central de Material Esterilizado','CME','Subsolo','u2','ca',.11],['s10','Diagnóstico por Imagem','Imagem','Térreo','u2','cp',.05]];
+  SL.forEach(([i,n,s,a,r,c])=>D('salas','demo_'+i,{nome:n,setor:s,andar:a,responsavelId:'demo_'+r,checklistId:'demo_c'+c,ativo:true}));
+  const cal=d=>new Date(Date.now()+d*864e5).toISOString().slice(0,10);
+  const EQ=[['e1','Ventilador pulmonar','Suporte à vida','s1','es',200],['e2','Monitor multiparamétrico','Suporte à vida','s1','es',90],['e3','Bomba de infusão','Suporte à vida','s2','es',45],['e4','Ventilador pulmonar','Suporte à vida','s2','es',-12],['e5','Incubadora neonatal','Suporte à vida','s3','es',150],['e6','Monitor multiparamétrico','Suporte à vida','s3','es',20],
+   ['e7','Aparelho de anestesia','Suporte à vida','s4','es',120],['e8','Foco cirúrgico','Apoio cirúrgico','s4','es',300],['e9','Aparelho de anestesia','Suporte à vida','s5','es',60],['e10','Desfibrilador','Suporte à vida','s5','es',-3],
+   ['e11','Carro de emergência','Emergência','s6','ee',400],['e12','Desfibrilador','Suporte à vida','s6','es',75],['e13','Aspirador cirúrgico','Suporte à vida','s6','es',180],['e14','Carro de emergência','Emergência','s7','ee',400],
+   ['e15','Refrigerador de medicamentos','Refrigeração','s8','er',365],['e16','Refrigerador de vacinas','Refrigeração','s8','er',250],['e17','Autoclave 1','Esterilização','s9','et',30],['e18','Autoclave 2','Esterilização','s9','et',110],['e19','Termodesinfectora','Esterilização','s9','et',200],['e20','Tomógrafo','Diagnóstico','s10','es',160]];
+  EQ.forEach(([i,n,c,s,k,d])=>D('equipamentos','demo_'+i,{nome:n,categoria:c,salaId:'demo_'+s,patrimonio:'PAT-'+(10400+parseInt(i.slice(1))*37),checklistId:'demo_c'+k,calibracao:cal(d),ativo:true,thumb:null,fotoId:null}));
+
+  /* rondas cadastradas ("Nome da ronda"): responsável vazio = todos os inspetores */
+  const MD=[['m1','Ronda UTI · plantão diurno',['s1','s2','s3'],'u1',24],['m2','Ronda Centro Cirúrgico',['s4','s5'],'u3',24],['m3','Ronda Emergência e Enfermaria',['s6','s7'],'',24],['m4','Ronda Farmácia e CME',['s8','s9'],'u5',48],['m5','Ronda Diagnóstico por Imagem',['s10'],'',48]];
+  MD.forEach(([i,n,ss,r,f])=>D('modelos','demo_'+i,{nome:n,descricao:'',salaIds:ss.map(s=>'demo_'+s),responsavelId:r?'demo_'+r:'',freq:f,ativo:true}));
+
+  /* 4 semanas de execuções fictícias */
+  const day=864e5,now=Date.now(),NOMES={u1:'Marina Albuquerque',u2:'Carlos Menezes',u3:'Juliana Prado',u4:'Ricardo Teixeira',u5:'Patrícia Lima'};
+  for(let d=27;d>=0;d--)MD.forEach(([mid,mnome,ss,resp])=>{
+    if(rnd()>.6&&d>0)return; if(d===0&&rnd()>.35)return;
+    const ts=sod(now-d*day)+(6+Math.floor(rnd()*14))*36e5+Math.floor(rnd()*3600e3); if(ts>now)return;
+    const insp=resp?NOMES[resp]:pick(['Juliana Prado','Ricardo Teixeira','Patrícia Lima']),execId='demo_x'+mid+'_'+d;
+    ss.forEach(sid=>{
+      const [, sn,setor,, sresp,ck,q]=SL.find(x=>x[0]===sid);
+      const itens=[],ncs=[],p=q*(.75+.5*d/27);
+      const alv=[{a:'s',i:'demo_'+sid,n:'Ambiente · '+sn,cl:CL[ck]},...EQ.filter(e=>e[3]===sid).map(e=>({a:'e',i:'demo_'+e[0],n:e[1],cl:CL[e[4]],eq:e}))];
+      alv.forEach(al=>al.cl[2].forEach(t=>{const r=rnd()<p?'NC':(rnd()<.04?'NA':'C');itens.push({a:al.a,i:al.i,n:al.n,t,r});if(r==='NC')ncs.push({al,t})}));
+      const c=itens.filter(x=>x.r==='C').length,nc=ncs.length,na=itens.length-c-nc,rid='demo_r'+sid+'_'+d;
+      D('rondas',rid,{ts,execId,modeloId:'demo_'+mid,modeloNome:mnome,salaId:'demo_'+sid,salaNome:sn,setor,inspId:'demo_u3',inspNome:insp,c,nc,na,pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:'',itens});
+      ncs.forEach((x,j)=>{
+        const txt=x.t.toLowerCase();
+        const ti=txt.includes('limpeza')||txt.includes('lixeira')||txt.includes('lavatório')?'t1':txt.includes('calibra')||txt.includes('manutenção')||txt.includes('etiqueta')?'t3':txt.includes('temperatura')?'t5':txt.includes('alarme')?'t6':txt.includes('validade')&&txt.includes('medic')?'t4':txt.includes('sinaliza')||txt.includes('saídas')||txt.includes('extintor')?'t7':txt.includes('epi')?'t8':txt.includes('registro')||txt.includes('checklist')||txt.includes('lacre')?'t9':rnd()<.5?'t2':'t9';
+        const tp=T.find(t=>t[0]===ti),sev=Math.max(1,Math.min(4,tp[2]+(rnd()<.2?-1:rnd()<.15?1:0)));
+        const r=rnd(),age=d,st=age>10?(r<.86?'resolvida':r<.95?'tratamento':'aberta'):age>3?(r<.45?'resolvida':r<.75?'tratamento':'aberta'):(r<.1?'resolvida':r<.4?'tratamento':'aberta');
+        const desc={t1:'Superfície com resíduos e limpeza fora do padrão.',t2:'Equipamento apresentou falha durante a verificação.',t3:'Etiqueta de manutenção vencida ou ausente.',t4:'Item com validade expirada encontrado no ponto de uso.',t5:'Temperatura registrada fora da faixa preconizada.',t6:'Alarme sem resposta no teste de funcionamento.',t7:'Rota ou sinalização com obstrução parcial.',t8:'EPI indisponível no ponto de uso.',t9:'Registro do turno incompleto ou sem assinatura.'}[ti];
+        D('ncs','demo_n'+sid+'_'+d+'_'+j,{ts,rondaId:rid,execId,modeloId:'demo_'+mid,modeloNome:mnome,salaId:'demo_'+sid,salaNome:sn,setor,eqId:x.al.eq?'demo_'+x.al.eq[0]:null,eqNome:x.al.eq?x.al.eq[1]:'',itemTexto:x.t,tipoId:'demo_'+ti,tipoNome:tp[1],sev,desc,thumb:null,fotoId:null,status:st,resp:'demo_'+sresp,prazo:ts+[0,14,7,3,1][sev]*day,inspNome:insp,resolucao:st==='resolvida'?'Ação corretiva executada e conferida pelo responsável.':'',resolvidoEm:st==='resolvida'?ts+(4+Math.floor(rnd()*70))*36e5:null});
+      });
+    });
+  });
+
+  /* grava em paralelo, com barra de progresso */
+  let done=0;const tot=docs.length,tick=()=>{const bar=$(barId);if(bar){bar.hidden=false;bar.firstChild.style.width=(done/tot*100)+'%'}};
+  let i=0;await Promise.all(Array.from({length:6},async()=>{while(i<docs.length){const [c,id,d]=docs[i++];try{await RH.put(c,id,d)}catch(e){console.error(e)}done++;tick()}}));
+};
+
+RH.wipeDemo=async()=>{
+  const all=[];['users','salas','equipamentos','checklists','tiposNC','modelos','rondas','ncs'].forEach(c=>S[c].filter(x=>x.demo).forEach(x=>all.push([c,x.id])));
+  let i=0;await Promise.all(Array.from({length:6},async()=>{while(i<all.length){const [c,id]=all[i++];try{await RH.del(c,id)}catch(e){console.error(e)}}}));
+  toast('Dados de exemplo removidos.');
+};
+})();
+
+</script>
+<script>
+/* ==========================================================================
+   Telas de acesso: login e primeiro acesso (criação do administrador).
+   ========================================================================== */
+(()=>{
+const RH=window.RH;
+const {$,esc,S,st,ic}=RH;
+
+const authSide=()=>`<div class="auth-l"><div class="brand"><div class="logo">${ic('cross',20)}</div><div><b>${esc(S.cfg.hospital||'Ronda Hospitalar')}</b><span>Gestão de rondas hospitalares</span></div></div>
+<div><h2>Cada sala, cada equipamento, sempre sob controle.</h2><p>Registre rondas, fotografe não conformidades e acompanhe a saúde do hospital em tempo real.</p></div>
+<ul><li>${ic('clip')} Rondas com checklists por sala e por equipamento</li><li>${ic('alert')} Não conformidades com foto, severidade e prazo</li><li>${ic('dash')} Painel de indicadores por setor e período</li></ul></div>`;
+
+RH.views={
+  noaccess(){RH.$('#app').innerHTML=`<div class="auth-r" style="min-height:100%"><div class="auth-card"><h1>Ronda Hospitalar</h1><p>Não foi possível abrir o banco de dados neste navegador. Verifique a configuração em js/config.js e recarregue a página.</p></div></div>`},
+  login(){
+    $('#app').innerHTML=`<div class="auth">${authSide()}<div class="auth-r"><form class="auth-card" id="f-login" autocomplete="on">
+    <div><h1>Entrar</h1><p style="color:var(--ink2);margin:4px 0 0">Acesse com seu usuário e senha.</p></div>
+    <label class="field"><span>Usuário</span><input type="text" name="login" id="lg-login" autocomplete="username" required></label>
+    <label class="field"><span>Senha</span><input type="password" name="senha" id="lg-senha" autocomplete="current-password" required></label>
+    <div class="err" id="lg-err" role="alert"></div>
+    <button class="btn pri" type="submit">Entrar</button></form></div></div>`},
+  setup(){
+    $('#app').innerHTML=`<div class="auth">${authSide()}<div class="auth-r"><form class="auth-card" id="f-setup">
+    <div><h1>Primeiro acesso</h1><p style="color:var(--ink2);margin:4px 0 0">Crie o administrador e dê nome ao hospital. Depois você cadastra usuários, salas, equipamentos, checklists e rondas.</p></div>
+    <label class="field"><span>Nome do hospital</span><input type="text" name="hospital" id="st-h" value="Liga Contra o Câncer" required></label>
+    <label class="field"><span>Seu nome completo</span><input type="text" name="nome" id="st-n" required></label>
+    <label class="field"><span>Usuário de acesso</span><input type="text" name="login" id="st-l" autocomplete="username" required></label>
+    <label class="field"><span>Senha (mínimo 6 caracteres)</span><input type="password" name="senha" id="st-s" autocomplete="new-password" minlength="6" required></label>
+    <label class="chk"><input type="checkbox" name="demo" id="st-d"> Carregar dados de exemplo (apenas para conhecer o sistema; podem ser removidos depois)</label>
+    <div class="err" id="st-err" role="alert"></div>
+    <div class="prog-seed" id="st-prog" hidden><i></i></div>
+    <button class="btn pri" type="submit" id="st-btn">Criar e entrar</button></form></div></div>`}
+};
+
+RH.ON_SUBMIT['f-login']=async f=>{
+  const l=f.login.value.trim().toLowerCase(),u=S.users.find(x=>(x.login||'').toLowerCase()===l&&x.ativo!==false),er=$('#lg-err');er.textContent='';
+  if(!u||!u.hash||await RH.hash(f.senha.value,u.salt)!==u.hash){er.textContent='Usuário ou senha incorretos.';return}
+  st.me=u;try{sessionStorage.setItem('rh_uid',u.id)}catch(x){}
+  st.screen='';st.page=RH.access.firstPage();RH.renderRoot();
+};
+
+RH.ON_SUBMIT['f-setup']=async f=>{
+  const er=$('#st-err');er.textContent='';const btn=$('#st-btn');btn.disabled=true;st.busy=true;
+  try{
+    const salt=RH.uid()+RH.uid(),id='u'+RH.uid(),login=f.login.value.trim().toLowerCase();
+    const u={nome:f.nome.value.trim(),cargo:'Administrador do sistema',login,role:'admin',ativo:true,salt,hash:await RH.hash(f.senha.value,salt)};
+    await RH.put('config','main',{hospital:f.hospital.value.trim(),meta:95});
+    if(f.demo.checked)await RH.seedDemo('#st-prog');
+    await RH.put('users',id,u);st.me={id,...u};try{sessionStorage.setItem('rh_uid',id)}catch(x){}
+    st.busy=false;st.screen='';st.page='painel';RH.renderRoot();
+  }catch(x){st.busy=false;console.error(x);er.textContent='Não foi possível criar o acesso. Tente novamente.';btn.disabled=false}
+};
+})();
+
+</script>
+
+<!-- Aplicação -->
+<script>
+/* ==========================================================================
+   Aplicação: estrutura da tela (menu lateral), navegação, despacho de eventos
+   e inicialização. As telas ficam em js/features/*.js e se registram em
+   RH.pages / RH.ACT / RH.ON_CHANGE / RH.ON_INPUT / RH.ON_SUBMIT.
+   ========================================================================== */
+(async()=>{
+const RH=window.RH;
+const {$,esc,S,st,F,NF,HF,ic}=RH;
+
+const PAGES=[['painel','Painel','dash'],['ronda','Nova ronda','clip'],['historico','Histórico','hist'],['ncs','Não conformidades','alert'],['cadastros','Cadastros','set']];
+const allowedPages=()=>PAGES.filter(p=>RH.access.can(p[0]));
+
+/* ---------- raiz: decide qual tela mostrar ---------- */
+RH.renderRoot=()=>{
+  if(st.busy)return;
+  const sc=!st.db?'noaccess':!st.me?(S.users.length?'login':'setup'):'app';
+  if(sc!==st.screen){st.screen=sc;if(sc==='app')renderShell();else RH.views[sc]();return}
+  if(sc==='app')RH.renderView();
+};
+
+function renderShell(){
+  const me=st.me,ini=me.nome.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
+  if(!RH.access.can(st.page))st.page=RH.access.firstPage();
+  $('#app').innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo">${ic('cross',20)}</div><div><b>${esc(S.cfg.hospital||'Ronda Hospitalar')}</b><span>Ronda e conformidade</span></div></div>
+  <nav class="nav" id="nav" aria-label="Principal">${allowedPages().map(p=>`<button data-act="nav" data-p="${p[0]}">${ic(p[2])}<span>${p[1]}</span></button>`).join('')}</nav>
+  <div class="side-foot"><div class="me"><div class="avatar">${esc(ini)}</div><div><b>${esc(me.nome)}</b><span>${RH.ROLE[me.role]||''}</span></div></div>
+  <div class="row"><button class="ghost-d" data-act="theme" aria-label="Alternar tema">${ic('moon')}<span>Tema</span></button><button class="ghost-d" data-act="logout" aria-label="Sair">${ic('out')}<span>Sair</span></button></div></div></aside>
+  <main id="main"></main></div>`;
+  RH.renderView();
+}
+
+RH.go=p=>{if(!RH.access.can(p))return;st.page=p;RH.renderView(true);scrollTo(0,0)};
+
+RH.renderView=force=>{
+  const m=$('#main');if(!m||st.busy||!st.me)return;
+  if(!RH.access.can(st.page))st.page=RH.access.firstPage();
+  const page=st.page;
+  document.querySelectorAll('#nav button').forEach(b=>{
+    const on=b.dataset.p===page;if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+    const d=b.querySelector('.dot'),isR=b.dataset.p==='ronda';
+    if(isR&&st.R&&!d)b.insertAdjacentHTML('beforeend','<i class="dot" title="Ronda em andamento"></i>');
+    if(d&&!(isR&&st.R))d.remove()});
+  /* ronda em andamento: não redesenha a cada atualização de dados (preserva o que foi digitado) */
+  if(page==='ronda'&&st.R){if(!force&&m.querySelector('.rhead'))return;m.innerHTML=RH.rondaForm();RH.rondaProgress();return}
+  const ro=st.canWrite===false?`<div class="banner">Seu acesso é somente leitura: você pode consultar, mas não registrar dados.</div>`:'';
+  m.innerHTML=ro+RH.pages[page]();
+  RH.after[page]?.();
+};
+
+RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid')}catch(e){}st.screen='';RH.renderRoot()};
+
+/* ---------- ações do menu e do modal ---------- */
+Object.assign(RH.ACT,{
+  nav:el=>RH.go(el.dataset.p),
+  theme:()=>{const d=document.documentElement,cur=d.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'),next=cur==='dark'?'light':'dark';d.dataset.theme=next;try{localStorage.setItem('rh_theme',next)}catch(e){}if(st.page==='painel')setTimeout(()=>RH.after.painel(),0)},
+  /* não perde uma ronda em andamento sem avisar */
+  logout:()=>{if(st.R&&Object.values(st.R.itens).some(i=>i.r)&&!RH.confirmArm(RH.ACT.logout,'Há uma ronda em andamento. Toque de novo em Sair para descartá-la.'))return;RH.logout()},
+  closeModal:RH.closeModal,
+  ovClose:(el,e)=>{if(e.target===el)RH.closeModal()}
+});
+
+/* ---------- despacho de eventos ---------- */
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');if(!el)return;
+  if(el.tagName==='TR'&&e.target.closest('button,a'))return;
+  RH.ACT[el.dataset.act]?.(el,e)});
+document.addEventListener('change',async e=>{
+  const el=e.target;
+  for(const h of RH.ON_CHANGE){if(await h(el,e))return}
+  if(el.dataset.set&&el.dataset.live==null){const [o,k]=el.dataset.set.split(':');({F,NF,HF})[o][k]=el.dataset.num?+el.value:el.value;RH.renderView()}
+});
+document.addEventListener('input',e=>{for(const h of RH.ON_INPUT){if(h(e.target,e))return}});
+document.addEventListener('submit',e=>{e.preventDefault();const h=RH.ON_SUBMIT[e.target.id];if(h)h(e.target)});
+/* evita perder uma ronda em andamento ao fechar/recarregar a página */
+addEventListener('beforeunload',e=>{if(st.R){e.preventDefault();e.returnValue=''}});
+
+/* ---------- início ---------- */
+try{const th=localStorage.getItem('rh_theme');if(th)document.documentElement.dataset.theme=th}catch(e){}
+$('#app').innerHTML='<div class="auth-r" style="min-height:100%"><p style="color:var(--muted)">Carregando…</p></div>';
+try{st.db=await RH.store.open()}catch(e){console.error(e);st.db=null}
+if(!st.db){st.screen='';RH.renderRoot();return}
+RH.syncAll();
+})();
+
+</script>
+</body>
+</html>

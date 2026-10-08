@@ -17,7 +17,7 @@ Depois de atualizar o site, recarregue a página com Ctrl+F5 (ou limpe o cache n
 | Perfil | Telas |
 |---|---|
 | Administrador | Painel, Nova ronda, Histórico, Não conformidades, Cadastros |
-| Gestor da qualidade | Painel, Nova ronda, Histórico, Não conformidades |
+| Gestor | Painel, Nova ronda, Histórico, Não conformidades |
 | Inspetor | **somente Nova ronda** |
 
 * Ronda **com responsável**: só ele a vê e realiza. Exceção: o **administrador** vê e realiza todas as rondas.

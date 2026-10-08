@@ -135,7 +135,7 @@ def main():
         # admin só vê rondas sem responsável em Nova ronda
         page.click("#nav [data-p=ronda]")
         cards = [c.inner_text() for c in page.query_selector_all("[data-act=pickRonda]")]
-        check("Admin (não responsável) vê só a ronda sem responsável", len(cards) == 1 and "Ronda Farmácia" in cards[0], cards)
+        check("Administrador vê todas as rondas (com e sem responsável)", len(cards) == 2, cards)
         logout(page)
 
         # ---- inspetora Iara
@@ -239,7 +239,7 @@ def main():
         check("Histórico agrupa por ronda", "Ronda UTI · plantão diurno" in page.inner_text("tbody") and "3 salas" in page.inner_text("tbody"))
         page.click("#nav [data-p=ronda]")
         n_cards = page.locator("[data-act=pickRonda]").count()
-        check("Admin vê rondas sem responsável do exemplo (2)", n_cards == 2, n_cards)
+        check("Administrador vê todas as rondas do exemplo (5)", n_cards == 5, n_cards)
         page.click("#nav [data-p=ncs]")
         check("NCs de exemplo listadas", page.locator(".nc").count() > 10)
         page.click("#nav [data-p=cadastros]"); page.click("[data-act=cadTab][data-k=hospital]")
@@ -326,6 +326,42 @@ def main():
         page.evaluate("RH.upd('ncs',RH.S.ncs[0].id,{prazo:Date.parse('2026-10-08T02:30:00Z')})")
         page.click("#nav [data-p=ncs]"); page.click("[data-act=ncOpen]"); page.wait_for_selector("#f-nc")
         check("Prazo da NC mostra o dia local (07/10), não o do UTC", page.input_value("input[name=prazo]") == "2026-10-07", page.input_value("input[name=prazo]"))
+
+        # ---- excluir ronda realizada (Histórico)
+        page.evaluate("RH.ACT.delRonda({dataset:{id:RH.S.rondas[0].execId,armed:'1'},textContent:''})")  # só para provar o fluxo abaixo
+        page.wait_for_timeout(300)
+        check("Admin pode excluir ronda (fluxo direto)", page.evaluate("RH.S.rondas.length") == 0)
+        page.evaluate("""(async()=>{ // recria uma execução com 1 NC e uma sem NC para testar as duas opções
+          const base={ts:Date.now(),salaId:'s1',salaNome:'Sala 1',setor:'A',inspNome:'Ines',c:1,nc:0,na:0,pct:100,itens:[]};
+          await RH.put('rondas','rA1',{...base,execId:'xA',modeloId:'m1',modeloNome:'Ronda A',c:0,nc:1,pct:0});
+          await RH.put('rondas','rA2',{...base,execId:'xA',salaId:'s2',salaNome:'Sala 2',modeloId:'m1',modeloNome:'Ronda A'});
+          await RH.put('ncs','nA',{ts:base.ts,rondaId:'rA1',execId:'xA',salaNome:'Sala 1',sev:2,status:'aberta',desc:'x',tipoNome:'Falha'});
+          await RH.put('rondas','rB1',{...base,execId:'xB',modeloId:'m1',modeloNome:'Ronda A',ts:base.ts-1000});
+        })()""")
+        page.click("#nav [data-p=historico]")
+        page.locator("tbody tr").first.click(); page.wait_for_selector("#btn-delronda")
+        check("Detalhe oferece excluir ronda; apagar as NCs vem desmarcado (padrão seguro)", not page.is_checked("#del-ncs") and "1 não conformidade" in page.inner_text(".mf"))
+        page.check("#del-ncs")
+        page.click("#btn-delronda")
+        check("Excluir ronda pede confirmação (1º toque não exclui)", page.evaluate("RH.S.rondas.length") == 3 and "Confirmar" in page.inner_text("#btn-delronda"))
+        page.click("#btn-delronda"); page.wait_for_selector(".mod", state="detached")
+        check("Ronda excluída com todas as salas e a NC dela", page.evaluate("[RH.S.rondas.length,RH.S.ncs.some(n=>n.id==='nA')]") == [1, False])
+        page.evaluate("RH.put('ncs','nB',{ts:Date.now(),rondaId:'rB1',execId:'xB',salaNome:'Sala 1',sev:2,status:'aberta',desc:'y'})")
+        page.click("#nav [data-p=painel]"); page.click("#nav [data-p=historico]")
+        page.locator("tbody tr").first.click(); page.wait_for_selector("#btn-delronda")
+        page.uncheck("#del-ncs"); page.click("#btn-delronda"); page.click("#btn-delronda"); page.wait_for_selector(".mod", state="detached")
+        check("Desmarcando a opção, as NCs são mantidas", page.evaluate("[RH.S.rondas.length,RH.S.ncs.some(n=>n.id==='nB')]") == [0, True])
+        logout(page)
+        # gestor também vê o botão; inspetor não consegue excluir por console
+        page.evaluate("RH.put('rondas','rC',{ts:Date.now(),execId:'xC',modeloNome:'C',salaId:'s1',salaNome:'S',inspNome:'i',c:1,nc:0,na:0,pct:100,itens:[]})")
+        login(page, "ines", "senha123")
+        page.evaluate("RH.ACT.delRonda({dataset:{id:'xC',armed:'1'},textContent:''})"); page.wait_for_timeout(300)
+        check("Inspetor não consegue excluir ronda", page.evaluate("RH.S.rondas.length") == 1)
+        # ---- atualização automática não rouba o foco de quem está digitando
+        logout(page); login(page, "admin", "senha123")
+        page.click("#nav [data-p=ncs]"); page.click("#nc-q"); page.keyboard.type("abc")
+        page.evaluate("RH.put('config','main',{...RH.S.cfg,meta:90})"); page.wait_for_timeout(700)
+        check("Dados mudando em outro aparelho não tiram o foco do campo de busca", page.evaluate("document.activeElement.id") == "nc-q" and page.input_value("#nc-q") == "abc")
         ctx.close()
         browser.close()
     srv.shutdown()

@@ -5,9 +5,9 @@
      Gestor        : Painel, Nova ronda, Histórico e Não conformidades
      Inspetor      : SOMENTE "Nova ronda"
 
-   Rondas: uma ronda com responsável só é vista/realizada por ele; uma ronda
-   "Sem responsável" é vista e realizada por todos os usuários com acesso a
-   Nova ronda. Perfil desconhecido é tratado como Inspetor (menor privilégio).
+   Rondas: uma ronda com responsável só é vista/realizada por ele (o Administrador
+   vê e realiza todas); uma ronda "Sem responsável" é vista e realizada por todos
+   os usuários com acesso a Nova ronda. Perfil desconhecido é tratado como Inspetor (menor privilégio).
 
    Atenção: estas regras controlam a INTERFACE. O banco compartilhado é protegido
    apenas pelo código de acesso da equipe (veja LEIA-ME.md).
@@ -30,6 +30,7 @@ RH.access={
   /* a ronda cadastrada `m` aparece para o usuário `u`? */
   rondaVisivel:(m,u)=>!!u&&m.ativo!==false&&(u.role==='admin'||!m.responsavelId||m.responsavelId===u.id),
   canEditNC:()=>gerencia()&&st.canWrite!==false,
-  canDeleteNC:()=>gerencia()&&st.canWrite!==false
+  canDeleteNC:()=>gerencia()&&st.canWrite!==false,
+  canDeleteRonda:()=>gerencia()&&st.canWrite!==false
 };
 })();

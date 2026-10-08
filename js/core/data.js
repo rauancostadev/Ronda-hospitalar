@@ -31,7 +31,7 @@ function onData(){
       RH.renderRoot()}
     return}
   if(st.me){const u=byId(S.users,st.me.id);if(!u||u.ativo===false){RH.logout();return}st.me=u}
-  clearTimeout(onData.t);onData.t=setTimeout(RH.renderRoot,200);
+  clearTimeout(onData.t);onData.t=setTimeout(()=>RH.renderRoot(true),200);
 }
 RH.syncAll=()=>COLS.forEach(sync);
 })();

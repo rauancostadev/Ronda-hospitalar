@@ -20,8 +20,9 @@ Depois de atualizar o site, recarregue a página com Ctrl+F5 (ou limpe o cache n
 | Gestor da qualidade | Painel, Nova ronda, Histórico, Não conformidades |
 | Inspetor | **somente Nova ronda** |
 
-* Ronda **com responsável**: só ele a vê e realiza (vale para qualquer perfil, inclusive administrador).
+* Ronda **com responsável**: só ele a vê e realiza. Exceção: o **administrador** vê e realiza todas as rondas.
 * Ronda **"Sem responsável"**: todos os usuários com acesso a Nova ronda a veem e realizam.
+* Excluir uma ronda realizada (Histórico → abrir a ronda → Excluir ronda): administrador e gestor; há uma caixa (desmarcada por padrão) para apagar também as NCs geradas.
 * Excluir uma não conformidade: administrador e gestor (pede confirmação; a foto é apagada junto).
 * Essas regras controlam a **interface**. O banco é protegido pelo código de acesso da equipe: quem tem o
   código e conhecimentos técnicos consegue ler os dados diretamente. Não compartilhe o código fora da equipe.

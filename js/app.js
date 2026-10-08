@@ -11,11 +11,11 @@ const PAGES=[['painel','Painel','dash'],['ronda','Nova ronda','clip'],['historic
 const allowedPages=()=>PAGES.filter(p=>RH.access.can(p[0]));
 
 /* ---------- raiz: decide qual tela mostrar ---------- */
-RH.renderRoot=()=>{
+RH.renderRoot=auto=>{
   if(st.busy)return;
   const sc=!st.db?'noaccess':!st.me?(S.users.length?'login':'setup'):'app';
   if(sc!==st.screen){st.screen=sc;if(sc==='app')renderShell();else RH.views[sc]();return}
-  if(sc==='app')RH.renderView();
+  if(sc==='app')RH.renderView(false,auto);
 };
 
 function renderShell(){
@@ -31,8 +31,10 @@ function renderShell(){
 
 RH.go=p=>{if(!RH.access.can(p))return;st.page=p;RH.renderView(true);scrollTo(0,0)};
 
-RH.renderView=force=>{
+RH.renderView=(force,auto)=>{
   const m=$('#main');if(!m||st.busy||!st.me)return;
+  /* atualização automática (dados mudaram em outro aparelho): não redesenha enquanto a pessoa digita/escolhe num campo */
+  if(auto&&/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'')&&m.contains(document.activeElement))return;
   if(!RH.access.can(st.page))st.page=RH.access.firstPage();
   const page=st.page;
   document.querySelectorAll('#nav button').forEach(b=>{

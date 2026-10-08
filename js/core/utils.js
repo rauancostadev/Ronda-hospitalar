@@ -15,7 +15,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 /* ---------- constantes de domínio ---------- */
 const SEV={1:'Baixa',2:'Média',3:'Alta',4:'Crítica'};
 const ST={aberta:'Aberta',tratamento:'Em tratamento',resolvida:'Resolvida'};
-const ROLE={admin:'Administrador',gestor:'Gestor da qualidade',inspetor:'Inspetor'};
+const ROLE={admin:'Administrador',gestor:'Gestor',inspetor:'Inspetor'};
 
 /* ---------- datas e números (pt-BR) ---------- */
 const fdt=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});

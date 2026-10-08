@@ -28,7 +28,7 @@ RH.access={
   can:p=>!!st.me&&pagesOf().includes(p),
   firstPage:()=>pagesOf()[0],
   /* a ronda cadastrada `m` aparece para o usuário `u`? */
-  rondaVisivel:(m,u)=>!!u&&m.ativo!==false&&(!m.responsavelId||m.responsavelId===u.id),
+  rondaVisivel:(m,u)=>!!u&&m.ativo!==false&&(u.role==='admin'||!m.responsavelId||m.responsavelId===u.id),
   canEditNC:()=>gerencia()&&st.canWrite!==false,
   canDeleteNC:()=>gerencia()&&st.canWrite!==false
 };

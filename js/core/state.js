@@ -44,6 +44,10 @@ RH.byId=byId;
 RH.userName=id=>byId(S.users,id)?.nome||'—';
 
 /* salas ativas de uma ronda cadastrada, na ordem salva */
+/* setor de um equipamento (cadastros antigos só tinham a sala: usa o setor dela) */
+RH.setorEq=e=>e.setor||byId(S.salas,e.salaId)?.setor||'';
+/* equipamentos de uma ronda: os escolhidos (equipIds); rondas antigas, sem essa lista, usam os equipamentos das salas */
+RH.equipsDaRonda=m=>(Array.isArray(m.equipIds)?m.equipIds.map(id=>byId(S.equipamentos,id)):S.equipamentos.filter(e=>e.salaId&&(m.salaIds||[]).includes(e.salaId))).filter(e=>e&&e.ativo!==false);
 RH.salasDaRonda=m=>(m.salaIds||[]).map(id=>byId(S.salas,id)).filter(s=>s&&s.ativo!==false);
 
 /* Uma "execução" de ronda grava um documento por sala visitada, todos com o mesmo

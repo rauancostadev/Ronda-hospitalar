@@ -37,12 +37,15 @@ js/core/                núcleo (sem telas)
   utils.js                helpers, constantes, formatação pt-BR, ícones — cria window.RH
   state.js                dados em memória (RH.S), estado da tela (RH.st), filtros, consultas
   access.js               permissões por perfil e visibilidade das rondas
-  security.js             hash de senha (PBKDF2)
+  security.js             hash de senha (PBKDF2) e regra de senha (mín. 8 caracteres + 1 símbolo)
+  agenda.js               dias e horários das rondas e regra de atraso
+  orientacao.js           sugestão automática de "Orientação / ação esperada" a partir do nome do tipo de NC
   images.js               redução de fotos
   ui.js                   aviso, tooltip, modal, selos, caixa de orientação
   data.js                 gravar/atualizar/apagar, sincronização em tempo real
 js/features/            uma tela (ou função) por arquivo
   auth.js                 login e primeiro acesso
+  conta.js                "Senha" no menu: o próprio usuário altera a sua senha
   painel.js               indicadores e gráficos
   ronda.js                Nova ronda: lista de rondas e preenchimento
   historico.js            histórico de rondas realizadas
@@ -67,3 +70,14 @@ python3 tests/e2e.py          # fluxo completo em modo local (nunca toca o banco
 python3 tests/remote_mock.py  # modo compartilhado contra um servidor simulado
 RH_PAGE=dist/ronda-hospitalar-teste.html python3 tests/e2e.py   # testa o arquivo único (gere com --sem-config)
 ```
+
+## Regras novas
+
+- **Senha**: mínimo de 8 caracteres e 1 símbolo especial (`RH.checkSenha`). Vale para novas senhas e trocas; contas antigas continuam entrando.
+- **Rondas**: definidas por dias da semana + horários. Fica "em atraso" 1 h depois do horário sem execução; uma execução feita até 1 h antes do horário vale para ele. Rondas antigas (por horas) mantêm a regra antiga até serem editadas.
+- **Checklist "Aplica-se a"**: Sala, Equipamento ou Sala e equipamento.
+- **Orientação padrão**: gerada por regras internas (sem internet nem chave de API) ao digitar o nome do tipo de NC; continua editável.
+- **Setor e equipamentos**: o equipamento pertence a um **Setor** (não mais a uma sala). A ronda escolhe salas e equipamentos por setor (`salaIds` + `equipIds`); rondas antigas sem `equipIds` usam os equipamentos das salas (`RH.equipsDaRonda`). Na execução, cada sala é um bloco e os equipamentos do setor formam outro, com as etiquetas Sala / Equipamento.
+- **Duplicar**: botão em cada linha de Cadastros; abre o formulário já preenchido como novo cadastro (nome + "(cópia)"; usuário sem login/senha; equipamento sem patrimônio).
+- **Painel**: cada gráfico/lista tem botão para minimizar (lembrado neste navegador) e há "Minimizar tudo / Expandir tudo".
+- **Visual institucional**: paleta azul hospitalar (claro e escuro), superfícies planas com bordas finas, barra de contexto (data, tipo de base, perfil) e tela de acesso reformulada. O detalhe de uma ronda no Histórico tem **Imprimir relatório** (cabeçalho do hospital e campos de assinatura).

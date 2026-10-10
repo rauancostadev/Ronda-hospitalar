@@ -12,11 +12,22 @@
 const RH=window.RH;
 const {$,esc,S,st,byId,userName,pc,ago,fdt,fd,ic,empty,toast,SEV}=RH;
 
-/* alvos de uma sala: o ambiente e cada equipamento ativo */
-function alvos(sala){
-  const o=[{a:'s',i:sala.id,n:'Ambiente · '+sala.nome,cl:byId(S.checklists,sala.checklistId)}];
-  S.equipamentos.filter(e=>e.salaId===sala.id&&e.ativo!==false).forEach(e=>o.push({a:'e',i:e.id,n:e.nome,eq:e,cl:byId(S.checklists,e.checklistId)}));
+/* A ronda é percorrida por setor: cada sala é um bloco e os equipamentos do setor formam outro bloco.
+   Alvo = o que recebe um checklist: a própria sala (a:'s') ou um equipamento (a:'e'). */
+function blocosDa(m){
+  const salas=RH.salasDaRonda(m),eqs=RH.equipsDaRonda(m),ord=[];
+  const setorDe=x=>x||'Sem setor';
+  salas.forEach(s=>{if(!ord.includes(setorDe(s.setor)))ord.push(setorDe(s.setor))});
+  eqs.forEach(e=>{const k=setorDe(RH.setorEq(e));if(!ord.includes(k))ord.push(k)});
+  const o=[];
+  ord.forEach(k=>{
+    salas.filter(s=>setorDe(s.setor)===k).forEach(s=>o.push({id:s.id,tipo:'sala',salaId:s.id,setor:k}));
+    if(eqs.some(e=>setorDe(RH.setorEq(e))===k))o.push({id:'eq:'+k,tipo:'eq',salaId:null,setor:k,eqIds:eqs.filter(e=>setorDe(RH.setorEq(e))===k).map(e=>e.id)})});
   return o}
+function alvos(bl){
+  if(bl.tipo==='sala'){const s=byId(S.salas,bl.salaId);return s?[{a:'s',i:s.id,n:s.nome,cl:byId(S.checklists,s.checklistId)}]:[]}
+  return bl.eqIds.map(id=>byId(S.equipamentos,id)).filter(Boolean).map(e=>({a:'e',i:e.id,n:e.nome,eq:e,cl:byId(S.checklists,e.checklistId)}))}
+const tagTipo=a=>a==='e'?'<span class="tag tag-e">Equipamento</span>':'<span class="tag tag-s">Sala</span>';
 const prefix=(sid,al)=>`${sid}:${al.a}:${al.i}:`;
 const thumbEq=e=>e.thumb?`<img class="thumb" src="${e.thumb}" alt="${esc(e.nome)}">`:`<div class="thumb">${ic('dev',22)}</div>`;
 RH.thumbEq=thumbEq;
@@ -35,24 +46,26 @@ RH.pages.ronda=()=>{
   return `<div class="top"><div><h1>Nova ronda</h1><p>Escolha a ronda que você vai realizar.</p></div></div>
   ${st.R?`<div class="banner">Há uma ronda em andamento (${esc(st.R.nome)}). <button class="btn sm" data-act="resumeRonda">Continuar ronda</button></div>`:''}
   ${lista.length?`<div class="salas">${lista.map(m=>{
-    const l=lastExec(m.id),late=!l||Date.now()-l.ts>(+m.freq||24)*36e5,salas=RH.salasDaRonda(m);
-    const ne=salas.reduce((n,s)=>n+S.equipamentos.filter(e=>e.salaId===s.id&&e.ativo!==false).length,0);
+    const l=lastExec(m.id),late=RH.agenda.atrasada(m,l?l.ts:null),salas=RH.salasDaRonda(m),setores=[...new Set([...salas.map(s=>s.setor||'Sem setor'),...RH.equipsDaRonda(m).map(e=>RH.setorEq(e)||'Sem setor')])].sort((a,b)=>a.localeCompare(b)),prox=RH.agenda.proximo(m,Date.now());
+    const ne=RH.equipsDaRonda(m).length;
     return `<button class="sala" data-act="pickRonda" data-id="${m.id}"><div class="h"><b>${esc(m.nome)}</b>${late?'<span class="pill late">Em atraso</span>':'<span class="pill okp">Em dia</span>'}</div>
     ${m.descricao?`<small>${esc(m.descricao)}</small>`:''}
+    <div class="f"><span>${esc(setores.join(', ')||'—')}</span></div>
     <div class="f"><span>${salas.length} sala${salas.length===1?'':'s'}</span><span>${ne} equipamento${ne===1?'':'s'}</span></div>
     <div class="f"><span>Responsável: ${m.responsavelId?esc(userName(m.responsavelId)):'todos os inspetores'}</span></div>
-    <small>${l?`Última realização ${ago(l.ts)}`:'Nunca realizada'} · a cada ${+m.freq||24} h</small></button>`}).join('')}</div>`:vazio}`;
+    <small>${esc(RH.agenda.resumo(m))}${prox?` · próxima: ${RH.agenda.fmtSlot(prox)}`:''}</small>
+    <small>${l?`Última realização ${ago(l.ts)}`:'Nunca realizada'}</small></button>`}).join('')}</div>`:vazio}`;
 };
 
 /* ---------- execução ---------- */
 function startRonda(id){
   const m=byId(S.modelos,id);if(!m)return;
   if(!RH.access.rondaVisivel(m,st.me)){toast('Você não tem acesso a esta ronda.','bad');return}
-  const salas=RH.salasDaRonda(m);
-  if(!salas.length){toast('Esta ronda não tem salas ativas. Ajuste em Cadastros → Rondas.','bad');return}
+  const blocos=blocosDa(m);
+  if(!blocos.length){toast('Esta ronda não tem salas nem equipamentos ativos. Ajuste em Cadastros → Rondas.','bad');return}
   const itens={};
-  salas.forEach(sala=>alvos(sala).forEach(al=>(al.cl?.itens||[]).forEach(it=>{itens[prefix(sala.id,al)+it.id]={sid:sala.id,a:al.a,i:al.i,n:al.n,t:it.t,r:''}})));
-  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',salaIds:salas.map(s=>s.id),itens,obs:'',started:Date.now()};
+  blocos.forEach(bl=>alvos(bl).forEach(al=>(al.cl?.itens||[]).forEach(it=>{itens[prefix(bl.id,al)+it.id]={sid:bl.id,a:al.a,i:al.i,n:al.n,t:it.t,r:''}})));
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:'',started:Date.now()};
   RH.renderView(true);scrollTo(0,0);
 }
 
@@ -69,19 +82,25 @@ function itemHtml(k){
 }
 
 function rondaForm(){
-  const R=st.R,salas=R.salaIds.map(id=>byId(S.salas,id)).filter(Boolean);
+  const R=st.R,blocos=R.blocos;
   const hasItems=Object.keys(R.itens).length>0;
   const guia=S.tiposNC.filter(t=>t.orient);
-  const bloco=sala=>`<div class="sala-h"><h2>${esc(sala.nome)}</h2><small>${esc(sala.setor||'')}${sala.andar?' · '+esc(sala.andar):''}</small></div>`+alvos(sala).map(al=>{
-    const ks=Object.keys(R.itens).filter(k=>k.startsWith(prefix(sala.id,al)));
-    if(!ks.length)return `<div class="grp noitems"><div class="gh">${al.eq?thumbEq(al.eq):`<div class="thumb">${ic('shield',22)}</div>`}<div class="t"><b>${esc(al.n)}</b><small>Sem checklist vinculado${st.me.role==='admin'?' · vincule em Cadastros':''}</small></div></div></div>`;
+  const nSalas=blocos.filter(b=>b.tipo==='sala').length,nEq=blocos.reduce((n,b)=>n+(b.eqIds?b.eqIds.length:0),0);
+  const bloco=bl=>{
+    const sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null;
+    const h=sala?`<div class="sala-h"><h2>${esc(sala.nome)}</h2><small>${esc(sala.setor||'')}${sala.andar?' · '+esc(sala.andar):''}</small></div>`
+      :`<div class="sala-h"><h2>Equipamentos</h2><small>${esc(bl.setor)}</small></div>`;
+    return h+alvos(bl).map(al=>{
+    const ks=Object.keys(R.itens).filter(k=>k.startsWith(prefix(bl.id,al)));
+    const ico=al.eq?thumbEq(al.eq):`<div class="thumb">${ic('shield',22)}</div>`;
+    if(!ks.length)return `<div class="grp noitems"><div class="gh">${ico}<div class="t"><b>${tagTipo(al.a)}${esc(al.n)}</b><small>Sem checklist vinculado${st.me.role==='admin'?' · vincule em Cadastros':''}</small></div></div></div>`;
     const cal=al.eq?.calibracao?RH.calBadge(al.eq.calibracao):'';
-    return `<div class="grp"><div class="gh">${al.eq?thumbEq(al.eq):`<div class="thumb">${ic('shield',22)}</div>`}<div class="t"><b>${esc(al.n)}</b><small>${al.eq?`<span class="mono">${esc(al.eq.patrimonio||'sem patrimônio')}</span> · ${esc(al.eq.categoria||'')}`:esc(al.cl?.nome||'')}</small> ${cal}</div><button class="btn sm" data-act="allc" data-pre="${prefix(sala.id,al)}">Tudo conforme</button></div><div class="items">${ks.map(itemHtml).join('')}</div></div>`}).join('');
-  return `<div class="top"><div><h1>${esc(R.nome)}</h1><p>${salas.length} sala${salas.length===1?'':'s'} · Responsável: ${R.resp?esc(userName(R.resp)):'todos os inspetores'} · Inspetor: ${esc(st.me.nome)}</p></div>
+    return `<div class="grp"><div class="gh">${ico}<div class="t"><b>${tagTipo(al.a)}${esc(al.n)}</b><small>${al.eq?`<span class="mono">${esc(al.eq.patrimonio||'sem patrimônio')}</span> · ${esc(al.eq.categoria||'')}`:esc(al.cl?.nome||'')}</small> ${cal}</div><button class="btn sm" data-act="allc" data-pre="${prefix(bl.id,al)}">Tudo conforme</button></div><div class="items">${ks.map(itemHtml).join('')}</div></div>`}).join('')};
+  return `<div class="top"><div><h1>${esc(R.nome)}</h1><p>${nSalas} sala${nSalas===1?'':'s'} · ${nEq} equipamento${nEq===1?'':'s'} · Início às ${new Date(R.started).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · Responsável: ${R.resp?esc(userName(R.resp)):'todos os inspetores'} · Inspetor: ${esc(st.me.nome)}</p></div>
   <button class="btn" data-act="cancelRonda">${ic('x',16)} Descartar ronda</button></div>
   <div class="rhead"><div class="prog"><b id="prog-t"></b><div class="bar"><i id="prog-b" style="width:0"></i></div></div><button class="btn pri" data-act="submitRonda" id="btn-sub">${ic('check',16)} Finalizar ronda</button></div>
   ${guia.length?`<details class="card guide"><summary>Orientações por tipo de não conformidade</summary><div class="guide-l">${guia.map(t=>`<div><b>${esc(t.nome)}</b> ${RH.sevPill(t.sev||2)}<p>${esc(t.orient)}</p></div>`).join('')}</div></details>`:''}
-  ${hasItems?salas.map(bloco).join(''):empty('Esta ronda não tem itens de checklist','Vincule checklists às salas e aos equipamentos em Cadastros.')}
+  ${hasItems?blocos.map(bloco).join(''):empty('Esta ronda não tem itens de checklist','Vincule checklists às salas e aos equipamentos em Cadastros.')}
   <div class="card"><label class="field"><span>Observações gerais da ronda (opcional)</span><textarea id="r-obs" data-robs>${esc(R.obs)}</textarea></label></div>`;
 }
 RH.rondaForm=rondaForm;
@@ -108,18 +127,19 @@ async function submitRonda(){
   let totNC=0;
   const ok=await RH.safe(async()=>{
     totNC=0;
-    for(const sid of R.salaIds){
-      const sala=byId(S.salas,sid),mine=its.filter(([,i])=>i.sid===sid);
-      if(!sala||!mine.length)continue;
+    for(const bl of R.blocos){
+      const sid=bl.id,sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null,mine=its.filter(([,i])=>i.sid===sid);
+      if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
+      const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
       const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
-      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala.id,salaNome:sala.nome,setor:sala.setor||'',inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
+      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
         pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
       for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
         const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
         if(i.full){fotoId=mk('f:'+k,'f');await RH.put('fotos',fotoId,{data:i.full})}
         const sev=+i.sev||tipo?.sev||2;
-        await RH.put('ncs',mk('n:'+k,'n'),{ts,rondaId:rid,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala.id,salaNome:sala.nome,setor:sala.setor||'',eqId:eq?.id||null,eqNome:eq?.nome||'',itemTexto:i.t,
-          tipoId:i.tipoId,tipoNome:tipo?.nome||'',orient:tipo?.orient||'',sev,desc:i.desc.trim(),thumb:i.thumb||null,fotoId,status:'aberta',resp:sala.responsavelId||null,prazo:ts+([0,14,7,3,1][sev])*864e5,inspNome:st.me.nome});
+        await RH.put('ncs',mk('n:'+k,'n'),{ts,rondaId:rid,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,eqId:eq?.id||null,eqNome:eq?.nome||'',itemTexto:i.t,
+          tipoId:i.tipoId,tipoNome:tipo?.nome||'',orient:tipo?.orient||'',sev,desc:i.desc.trim(),thumb:i.thumb||null,fotoId,status:'aberta',resp:respSetor||null,prazo:ts+([0,14,7,3,1][sev])*864e5,inspNome:st.me.nome});
         totNC++;
       }
     }return true});

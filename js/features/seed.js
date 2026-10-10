@@ -15,8 +15,8 @@ RH.seedDemo=async barId=>{
   const T=[['t1','Higienização deficiente',2,'Refazer a limpeza terminal e registrar.'],['t2','Equipamento com falha',3,'Retirar de uso e acionar a engenharia clínica.'],['t3','Calibração ou manutenção vencida',3,'Agendar a manutenção e sinalizar o equipamento.'],['t4','Medicamento ou insumo vencido',4,'Descartar conforme o PGRSS e repor o estoque.'],['t5','Temperatura fora da faixa',3,'Verificar o equipamento e avaliar o descarte dos itens.'],['t6','Alarme inoperante',4,'Testar, reparar e validar antes de reutilizar.'],['t7','Sinalização ou rota de fuga obstruída',2,'Desobstruir imediatamente.'],['t8','Falta de EPI',2,'Repor os EPIs no ponto de uso.'],['t9','Registro ou documentação incompleta',1,'Completar o registro com o responsável.']];
   T.forEach(([i,n,s,o])=>D('tiposNC','demo_'+i,{nome:n,sev:s,orient:o}));
   const CL={
-   ca:['Ambiente · Área crítica','sala',['Limpeza e organização do ambiente','Temperatura entre 20 e 24 °C','Sinalização de segurança visível','EPIs disponíveis no ponto de uso','Descarte de perfurocortantes dentro do limite','Extintor com validade em dia','Saídas e rotas de fuga desobstruídas','Pontos de gases medicinais sem vazamentos']],
-   cp:['Ambiente · Apoio e assistência','sala',['Limpeza e organização do ambiente','Lavatório com sabonete e papel toalha','Lixeiras identificadas e tampadas','Iluminação e climatização adequadas','Extintor com validade em dia']],
+   ca:['Sala · Área crítica','sala',['Limpeza e organização do ambiente','Temperatura entre 20 e 24 °C','Sinalização de segurança visível','EPIs disponíveis no ponto de uso','Descarte de perfurocortantes dentro do limite','Extintor com validade em dia','Saídas e rotas de fuga desobstruídas','Pontos de gases medicinais sem vazamentos']],
+   cp:['Sala · Apoio e assistência','sala',['Limpeza e organização do ambiente','Lavatório com sabonete e papel toalha','Lixeiras identificadas e tampadas','Iluminação e climatização adequadas','Extintor com validade em dia']],
    es:['Equipamento · Suporte à vida','equipamento',['Integridade física, sem avarias','Cabos e conexões íntegros','Alarmes testados e audíveis','Bateria carregada','Etiqueta de calibração em dia','Limpeza e desinfecção realizadas']],
    et:['Equipamento · Esterilização','equipamento',['Integridade física, sem avarias','Indicador biológico/químico do ciclo conferido','Registro do ciclo preenchido','Porta e vedação íntegras','Etiqueta de manutenção em dia']],
    er:['Equipamento · Refrigeração de medicamentos','equipamento',['Temperatura entre 2 e 8 °C','Registro de temperatura do turno','Porta e vedação íntegras','Sem alimentos ou itens estranhos']],
@@ -29,11 +29,12 @@ RH.seedDemo=async barId=>{
    ['e7','Aparelho de anestesia','Suporte à vida','s4','es',120],['e8','Foco cirúrgico','Apoio cirúrgico','s4','es',300],['e9','Aparelho de anestesia','Suporte à vida','s5','es',60],['e10','Desfibrilador','Suporte à vida','s5','es',-3],
    ['e11','Carro de emergência','Emergência','s6','ee',400],['e12','Desfibrilador','Suporte à vida','s6','es',75],['e13','Aspirador cirúrgico','Suporte à vida','s6','es',180],['e14','Carro de emergência','Emergência','s7','ee',400],
    ['e15','Refrigerador de medicamentos','Refrigeração','s8','er',365],['e16','Refrigerador de vacinas','Refrigeração','s8','er',250],['e17','Autoclave 1','Esterilização','s9','et',30],['e18','Autoclave 2','Esterilização','s9','et',110],['e19','Termodesinfectora','Esterilização','s9','et',200],['e20','Tomógrafo','Diagnóstico','s10','es',160]];
-  EQ.forEach(([i,n,c,s,k,d])=>D('equipamentos','demo_'+i,{nome:n,categoria:c,salaId:'demo_'+s,patrimonio:'PAT-'+(10400+parseInt(i.slice(1))*37),checklistId:'demo_c'+k,calibracao:cal(d),ativo:true,thumb:null,fotoId:null}));
+  EQ.forEach(([i,n,c,s,k,d])=>D('equipamentos','demo_'+i,{nome:n,categoria:c,setor:SL.find(x=>x[0]===s)[2],patrimonio:'PAT-'+(10400+parseInt(i.slice(1))*37),checklistId:'demo_c'+k,calibracao:cal(d),ativo:true,thumb:null,fotoId:null}));
 
   /* rondas cadastradas ("Nome da ronda"): responsável vazio = todos os inspetores */
   const MD=[['m1','Ronda UTI · plantão diurno',['s1','s2','s3'],'u1',24],['m2','Ronda Centro Cirúrgico',['s4','s5'],'u3',24],['m3','Ronda Emergência e Enfermaria',['s6','s7'],'',24],['m4','Ronda Farmácia e CME',['s8','s9'],'u5',48],['m5','Ronda Diagnóstico por Imagem',['s10'],'',48]];
-  MD.forEach(([i,n,ss,r,f])=>D('modelos','demo_'+i,{nome:n,descricao:'',salaIds:ss.map(s=>'demo_'+s),responsavelId:r?'demo_'+r:'',freq:f,ativo:true}));
+  const TODOS=[0,1,2,3,4,5,6],UTEIS=[1,2,3,4,5],AG={m1:[TODOS,['08:00']],m2:[UTEIS,['08:00']],m3:[TODOS,['10:00','22:00']],m4:[UTEIS,['09:00']],m5:[TODOS,['14:00']]};
+  MD.forEach(([i,n,ss,r])=>D('modelos','demo_'+i,{nome:n,descricao:'',salaIds:ss.map(s=>'demo_'+s),equipIds:EQ.filter(e=>ss.includes(e[3])).map(e=>'demo_'+e[0]),responsavelId:r?'demo_'+r:'',dias:AG[i][0],horarios:AG[i][1],agendaDesde:Date.now()-30*864e5,ativo:true}));
 
   /* 4 semanas de execuções fictícias */
   const day=864e5,now=Date.now(),NOMES={u1:'Marina Albuquerque',u2:'Carlos Menezes',u3:'Juliana Prado',u4:'Ricardo Teixeira',u5:'Patrícia Lima'};
@@ -44,7 +45,7 @@ RH.seedDemo=async barId=>{
     ss.forEach(sid=>{
       const [, sn,setor,, sresp,ck,q]=SL.find(x=>x[0]===sid);
       const itens=[],ncs=[],p=q*(.75+.5*d/27);
-      const alv=[{a:'s',i:'demo_'+sid,n:'Ambiente · '+sn,cl:CL[ck]},...EQ.filter(e=>e[3]===sid).map(e=>({a:'e',i:'demo_'+e[0],n:e[1],cl:CL[e[4]],eq:e}))];
+      const alv=[{a:'s',i:'demo_'+sid,n:sn,cl:CL[ck]},...EQ.filter(e=>e[3]===sid).map(e=>({a:'e',i:'demo_'+e[0],n:e[1],cl:CL[e[4]],eq:e}))];
       alv.forEach(al=>al.cl[2].forEach(t=>{const r=rnd()<p?'NC':(rnd()<.04?'NA':'C');itens.push({a:al.a,i:al.i,n:al.n,t,r});if(r==='NC')ncs.push({al,t})}));
       const c=itens.filter(x=>x.r==='C').length,nc=ncs.length,na=itens.length-c-nc,rid='demo_r'+sid+'_'+d;
       D('rondas',rid,{ts,execId,modeloId:'demo_'+mid,modeloNome:mnome,salaId:'demo_'+sid,salaNome:sn,setor,inspId:'demo_u3',inspNome:insp,c,nc,na,pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:'',itens});

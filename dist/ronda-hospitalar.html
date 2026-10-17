@@ -1541,8 +1541,10 @@ function ordemHtml(){
   const o=st.M.ordem;
   return o.map((k,i)=>{const x=ordNome(k);if(!x)return '';const sala=k[0]==='s',inat=x.ativo===false?' <small>(inativ'+(sala?'a':'o')+')</small>':'';
     return `<div class="irow ord-row"><span class="ord-n" aria-label="Posição ${i+1}">${i+1}°</span><span class="ord-t"><span class="tag ${sala?'tag-s':'tag-e'}">${sala?'Sala':'Equipamento'}</span> ${esc(x.nome)}${inat} <small>${esc((sala?x.setor:RH.setorEq(x))||'Sem setor')}</small></span><button type="button" class="ic-btn" data-act="ordUp" data-i="${i}" aria-label="Subir">${ic('up',14)}</button><button type="button" class="ic-btn" data-act="ordDn" data-i="${i}" aria-label="Descer">${ic('dn',14)}</button><button type="button" class="ic-btn" data-act="ordDel" data-i="${i}" aria-label="Remover">${ic('trash',14)}</button></div>`}).join('')||'<div class="hint" style="margin-bottom:8px">Nenhuma sala ou equipamento. Adicione na ordem em que a inspeção deve ser feita.</div>'}
+/* salas e equipamentos já vinculados a outra ronda não podem ser escolhidos novamente */
+const usadosEmOutras=()=>new Set(S.modelos.filter(m=>m.id!==st.M.id).flatMap(m=>RH.ordemDaRonda(m)));
 function ordemOpts(){
-  const usados=new Set(st.M.ordem),sn=x=>x||'Sem setor',g={};
+  const usados=new Set([...st.M.ordem,...usadosEmOutras()]),sn=x=>x||'Sem setor',g={};
   S.salas.filter(s=>s.ativo!==false&&!usados.has('s:'+s.id)).forEach(s=>(g[sn(s.setor)]??=[]).push(['s:'+s.id,'Sala · '+s.nome]));
   S.equipamentos.filter(e=>e.ativo!==false&&!usados.has('e:'+e.id)).forEach(e=>(g[sn(RH.setorEq(e))]??=[]).push(['e:'+e.id,'Equipamento · '+e.nome]));
   const ks=Object.keys(g).sort((a,b)=>a.localeCompare(b));
@@ -1551,7 +1553,7 @@ const ordemRefresh=()=>{$('#ord-list').innerHTML=ordemHtml();$('#ord-add').inner
 function salasPicker(f){
   return `<div class="full"><span class="hint" style="font-weight:600;color:var(--ink2)">${esc(f.l)} *</span><div id="ord-list" style="margin-top:6px">${ordemHtml()}</div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><select id="ord-add" aria-label="Adicionar sala ou equipamento" style="flex:1;min-width:200px">${ordemOpts()}</select><button type="button" class="btn sm" data-act="ordAdd">${ic('plus',14)} Adicionar</button></div>
-  <small>Salas e equipamentos são inspecionados na ordem numerada (1° é o primeiro), com os checklists vinculados a cada um.</small></div>`}
+  <small>Itens já vinculados a outra ronda não aparecem na lista. Salas e equipamentos são inspecionados na ordem numerada (1° é o primeiro), com os checklists vinculados a cada um.</small></div>`}
 
 /* dias da semana + horários em que a ronda deve ser realizada */
 const horasHtml=()=>st.M.horarios.map((h,i)=>`<div class="irow"><input type="time" data-hx="${i}" value="${esc(h)}" required aria-label="Horário ${i+1}"><button type="button" class="ic-btn" data-act="agDelH" data-i="${i}" aria-label="Remover horário">${ic('trash',14)}</button></div>`).join('')||'<div class="hint" style="margin-bottom:8px">Nenhum horário. Adicione ao menos um.</div>';
@@ -1590,7 +1592,7 @@ function openEnt(ent,id,dupId){
   const E=ENT[ent],d=id||dupId?{...byId(S[E.col],id||dupId)}:{};
   if(dupId)preparaCopia(ent,d);
   if(ent==='equipamentos'&&!d.setor)d.setor=RH.setorEq(d);
-  st.M={ent,id,ordem:ent==='modelos'?RH.ordemDaRonda(d):null,items:(d.itens||[]).map(x=>({...x})),foto:{thumb:d.thumb||null,fotoId:d.fotoId||null,full:null,remove:false},armed:false};
+  st.M={ent,id,ordem:ent==='modelos'?(dupId?[]:RH.ordemDaRonda(d)):null,items:(d.itens||[]).map(x=>({...x})),foto:{thumb:d.thumb||null,fotoId:d.fotoId||null,full:null,remove:false},armed:false};
   if(ent==='checklists'&&!id&&!st.M.items.length)st.M.items=[{id:'i'+uid(),t:''}];
   /* agenda da ronda (padrão: segunda a sexta às 08:00; ronda antiga sem agenda: todos os dias) */
   st.M.dias=RH.agenda.temAgenda(d)?[...d.dias]:(id?[0,1,2,3,4,5,6]:[1,2,3,4,5]);
@@ -1612,7 +1614,8 @@ async function saveEnt(form){
       if(!dias.length)return err('Marque ao menos um dia da semana para a ronda.');
       if(!hs.length)return err('Informe ao menos um horário para a ronda.');
       data.dias=dias;data.horarios=hs;continue}
-    if(f.t==='salas'){data.ordem=M.ordem.filter(k=>ordNome(k));data[f.k]=data.ordem.filter(k=>k[0]==='s').map(k=>k.slice(2));data.equipIds=data.ordem.filter(k=>k[0]==='e').map(k=>k.slice(2));if(!data.ordem.length)return err('Marque ao menos uma sala ou um equipamento para a ronda.');continue}
+    if(f.t==='salas'){data.ordem=M.ordem.filter(k=>ordNome(k));data[f.k]=data.ordem.filter(k=>k[0]==='s').map(k=>k.slice(2));data.equipIds=data.ordem.filter(k=>k[0]==='e').map(k=>k.slice(2));{const uso=usadosEmOutras(),rep=data.ordem.find(k=>uso.has(k));if(rep)return err((rep[0]==='s'?'A sala ':'O equipamento ')+ordNome(rep).nome+' já está vinculad'+(rep[0]==='s'?'a':'o')+' a outra ronda.')}
+    if(!data.ordem.length)return err('Marque ao menos uma sala ou um equipamento para a ronda.');continue}
     if(f.t==='check'){data[f.k]=form.elements[f.k].checked;continue}
     if(f.t==='password')continue;
     let v=(form.elements[f.k].value||'').trim();

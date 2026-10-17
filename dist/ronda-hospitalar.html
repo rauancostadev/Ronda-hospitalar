@@ -994,7 +994,7 @@ function sync(col){
 function onData(){
   if(!st.booted){
     if(COLS.every(c=>ready[c])){st.booted=true;
-      try{const id=sessionStorage.getItem('rh_uid');const u=id&&byId(S.users,id);if(u&&u.ativo!==false)st.me=u}catch(e){}
+      try{const id=sessionStorage.getItem('rh_uid');const u=id&&byId(S.users,id);if(u&&u.ativo!==false){st.me=u;const pg=sessionStorage.getItem('rh_page'),ct=sessionStorage.getItem('rh_cadtab');if(pg)st.page=pg;if(ct)st.cadTab=ct}}catch(e){}
       RH.renderRoot()}
     return}
   if(st.me){const u=byId(S.users,st.me.id);if(!u||u.ativo===false){RH.logout();return}st.me=u}
@@ -1514,6 +1514,7 @@ function backupCard(){
 /* ---------- página ---------- */
 RH.pages.cadastros=()=>{
   const tabs=[...Object.keys(ENT),'hospital'],nm=k=>k==='hospital'?'Hospital':ENT[k].nome;
+  if(!tabs.includes(st.cadTab))st.cadTab='modelos';
   let body='';
   if(st.cadTab==='hospital'){
     const demo=['users','salas','equipamentos','checklists','tiposNC','modelos','rondas','ncs'].reduce((n,c)=>n+S[c].filter(x=>x.demo).length,0);
@@ -1663,7 +1664,7 @@ Object.assign(RH.ACT,{
   agDelH:el=>{st.M.horarios.splice(+el.dataset.i,1);$('#ag-horas').innerHTML=horasHtml()},
   genOrient:()=>{const n=($('#ff-nome')?.value||'').trim();if(!n){toast('Digite primeiro o nome do tipo.','bad');return}
     $('#ff-orient').value=RH.sugerirOrientacao(n);st.M.orientManual=false},
-  cadTab:el=>{st.cadTab=el.dataset.k;RH.renderView()},
+  cadTab:el=>{st.cadTab=el.dataset.k;try{sessionStorage.setItem('rh_cadtab',st.cadTab)}catch(e){}RH.renderView()},
   newEnt:()=>openEnt(st.cadTab), editEnt:el=>openEnt(st.cadTab,el.dataset.id), dupEnt:el=>openEnt(st.cadTab,null,el.dataset.id),
   delEnt:deleteEnt,
   itAdd:()=>{st.M.items.push({id:'i'+uid(),t:''});$('#items').innerHTML=itemsHtml();const i=document.querySelectorAll('[data-itx]');i[i.length-1]?.focus()},
@@ -1814,7 +1815,7 @@ RH.ON_SUBMIT['f-login']=async f=>{
   const l=f.login.value.trim().toLowerCase(),u=S.users.find(x=>(x.login||'').toLowerCase()===l&&x.ativo!==false),er=$('#lg-err');er.textContent='';
   if(!u||!u.hash||await RH.hash(f.senha.value,u.salt)!==u.hash){er.textContent='Usuário ou senha incorretos.';return}
   st.me=u;try{sessionStorage.setItem('rh_uid',u.id)}catch(x){}
-  st.screen='';st.page=RH.access.firstPage();RH.renderRoot();
+  st.screen='';st.page=RH.access.firstPage();try{sessionStorage.removeItem('rh_page');sessionStorage.removeItem('rh_cadtab')}catch(x){}RH.renderRoot();
 };
 
 RH.ON_SUBMIT['f-setup']=async f=>{
@@ -1921,7 +1922,7 @@ function tickClock(){
     document.getElementById('rh-turno').textContent='Turno da '+(h>=6&&h<12?'manhã':h>=12&&h<18?'tarde':'noite')}
 }
 
-RH.go=p=>{if(!RH.access.can(p))return;st.page=p;RH.renderView(true);scrollTo(0,0)};
+RH.go=p=>{if(!RH.access.can(p))return;st.page=p;try{sessionStorage.setItem('rh_page',p)}catch(e){}RH.renderView(true);scrollTo(0,0)};
 
 RH.renderView=(force,auto)=>{
   const m=$('#main');if(!m||st.busy||!st.me)return;
@@ -1941,7 +1942,7 @@ RH.renderView=(force,auto)=>{
   RH.after[page]?.();
 };
 
-RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid')}catch(e){}st.screen='';RH.renderRoot()};
+RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid');sessionStorage.removeItem('rh_page');sessionStorage.removeItem('rh_cadtab')}catch(e){}st.screen='';RH.renderRoot()};
 
 /* ---------- ações do menu e do modal ---------- */
 Object.assign(RH.ACT,{
@@ -1950,7 +1951,7 @@ Object.assign(RH.ACT,{
   /* não perde uma ronda em andamento sem avisar */
   logout:()=>{if(st.R&&Object.values(st.R.itens).some(i=>i.r)&&!RH.confirmArm(RH.ACT.logout,'Há uma ronda em andamento. Toque de novo em Sair para descartá-la.'))return;RH.logout()},
   closeModal:RH.closeModal,
-  ovClose:(el,e)=>{if(e.target===el)RH.closeModal()}
+  ovClose:()=>{} /* clicar fora da janela não fecha: use o X, Cancelar ou Esc */
 });
 
 /* ---------- despacho de eventos ---------- */

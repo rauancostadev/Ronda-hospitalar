@@ -42,7 +42,7 @@ function tickClock(){
     document.getElementById('rh-turno').textContent='Turno da '+(h>=6&&h<12?'manhã':h>=12&&h<18?'tarde':'noite')}
 }
 
-RH.go=p=>{if(!RH.access.can(p))return;st.page=p;RH.renderView(true);scrollTo(0,0)};
+RH.go=p=>{if(!RH.access.can(p))return;st.page=p;try{sessionStorage.setItem('rh_page',p)}catch(e){}RH.renderView(true);scrollTo(0,0)};
 
 RH.renderView=(force,auto)=>{
   const m=$('#main');if(!m||st.busy||!st.me)return;
@@ -62,7 +62,7 @@ RH.renderView=(force,auto)=>{
   RH.after[page]?.();
 };
 
-RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid')}catch(e){}st.screen='';RH.renderRoot()};
+RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid');sessionStorage.removeItem('rh_page');sessionStorage.removeItem('rh_cadtab')}catch(e){}st.screen='';RH.renderRoot()};
 
 /* ---------- ações do menu e do modal ---------- */
 Object.assign(RH.ACT,{
@@ -71,7 +71,7 @@ Object.assign(RH.ACT,{
   /* não perde uma ronda em andamento sem avisar */
   logout:()=>{if(st.R&&Object.values(st.R.itens).some(i=>i.r)&&!RH.confirmArm(RH.ACT.logout,'Há uma ronda em andamento. Toque de novo em Sair para descartá-la.'))return;RH.logout()},
   closeModal:RH.closeModal,
-  ovClose:(el,e)=>{if(e.target===el)RH.closeModal()}
+  ovClose:()=>{} /* clicar fora da janela não fecha: use o X, Cancelar ou Esc */
 });
 
 /* ---------- despacho de eventos ---------- */

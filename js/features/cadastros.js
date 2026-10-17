@@ -74,6 +74,7 @@ function backupCard(){
 /* ---------- página ---------- */
 RH.pages.cadastros=()=>{
   const tabs=[...Object.keys(ENT),'hospital'],nm=k=>k==='hospital'?'Hospital':ENT[k].nome;
+  if(!tabs.includes(st.cadTab))st.cadTab='modelos';
   let body='';
   if(st.cadTab==='hospital'){
     const demo=['users','salas','equipamentos','checklists','tiposNC','modelos','rondas','ncs'].reduce((n,c)=>n+S[c].filter(x=>x.demo).length,0);
@@ -223,7 +224,7 @@ Object.assign(RH.ACT,{
   agDelH:el=>{st.M.horarios.splice(+el.dataset.i,1);$('#ag-horas').innerHTML=horasHtml()},
   genOrient:()=>{const n=($('#ff-nome')?.value||'').trim();if(!n){toast('Digite primeiro o nome do tipo.','bad');return}
     $('#ff-orient').value=RH.sugerirOrientacao(n);st.M.orientManual=false},
-  cadTab:el=>{st.cadTab=el.dataset.k;RH.renderView()},
+  cadTab:el=>{st.cadTab=el.dataset.k;try{sessionStorage.setItem('rh_cadtab',st.cadTab)}catch(e){}RH.renderView()},
   newEnt:()=>openEnt(st.cadTab), editEnt:el=>openEnt(st.cadTab,el.dataset.id), dupEnt:el=>openEnt(st.cadTab,null,el.dataset.id),
   delEnt:deleteEnt,
   itAdd:()=>{st.M.items.push({id:'i'+uid(),t:''});$('#items').innerHTML=itemsHtml();const i=document.querySelectorAll('[data-itx]');i[i.length-1]?.focus()},

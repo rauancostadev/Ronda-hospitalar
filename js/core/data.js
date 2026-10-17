@@ -27,7 +27,7 @@ function sync(col){
 function onData(){
   if(!st.booted){
     if(COLS.every(c=>ready[c])){st.booted=true;
-      try{const id=sessionStorage.getItem('rh_uid');const u=id&&byId(S.users,id);if(u&&u.ativo!==false)st.me=u}catch(e){}
+      try{const id=sessionStorage.getItem('rh_uid');const u=id&&byId(S.users,id);if(u&&u.ativo!==false){st.me=u;const pg=sessionStorage.getItem('rh_page'),ct=sessionStorage.getItem('rh_cadtab');if(pg)st.page=pg;if(ct)st.cadTab=ct}}catch(e){}
       RH.renderRoot()}
     return}
   if(st.me){const u=byId(S.users,st.me.id);if(!u||u.ativo===false){RH.logout();return}st.me=u}

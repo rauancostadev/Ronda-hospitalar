@@ -6,7 +6,7 @@
      Inspetor      : SOMENTE "Nova ronda"
 
    Rondas: uma ronda com responsável só é vista/realizada por ele (o Administrador
-   vê e realiza todas); uma ronda "Sem responsável" é vista e realizada por todos
+   vê e realiza todas); uma ronda com responsável "Todos" é vista e realizada por todos
    os usuários com acesso a Nova ronda. Perfil desconhecido é tratado como Inspetor (menor privilégio).
 
    Atenção: estas regras controlam a INTERFACE. O banco compartilhado é protegido

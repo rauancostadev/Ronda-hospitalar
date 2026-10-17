@@ -10,7 +10,7 @@ Depois de atualizar o site, recarregue a página com Ctrl+F5 (ou limpe o cache n
 1. **Cadastros → Responsáveis e usuários**: crie os usuários (perfil Inspetor, Gestor ou Administrador).
 2. **Salas**, **Checklists** (um de "ambiente" e um de "equipamento"), **Equipamentos** (vinculando o checklist).
 3. **Tipos de NC**: preencha a *Orientação / ação esperada* — ela aparece como alerta para o inspetor.
-4. **Rondas**: dê um *nome*, marque as *salas* que fazem parte e escolha o *responsável* (ou "Sem responsável").
+4. **Rondas**: dê um *nome*, marque as *salas* que fazem parte e escolha o *responsável* (ou "Todos").
 5. O inspetor entra, abre **Nova ronda**, escolhe a ronda e responde as salas em sequência.
 
 ## Regras de acesso
@@ -21,7 +21,7 @@ Depois de atualizar o site, recarregue a página com Ctrl+F5 (ou limpe o cache n
 | Inspetor | **somente Nova ronda** |
 
 * Ronda **com responsável**: só ele a vê e realiza. Exceção: o **administrador** vê e realiza todas as rondas.
-* Ronda **"Sem responsável"**: todos os usuários com acesso a Nova ronda a veem e realizam.
+* Ronda com responsável **"Todos"**: todos os usuários com acesso a Nova ronda a veem e realizam.
 * Excluir uma ronda realizada (Histórico → abrir a ronda → Excluir ronda): administrador e gestor; há uma caixa (desmarcada por padrão) para apagar também as NCs geradas.
 * Excluir uma não conformidade: administrador e gestor (pede confirmação; a foto é apagada junto).
 * Essas regras controlam a **interface**. O banco é protegido pelo código de acesso da equipe: quem tem o

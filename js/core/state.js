@@ -48,6 +48,16 @@ RH.userName=id=>byId(S.users,id)?.nome||'—';
 RH.setorEq=e=>e.setor||byId(S.salas,e.salaId)?.setor||'';
 /* equipamentos de uma ronda: os escolhidos (equipIds); rondas antigas, sem essa lista, usam os equipamentos das salas */
 RH.equipsDaRonda=m=>(Array.isArray(m.equipIds)?m.equipIds.map(id=>byId(S.equipamentos,id)):S.equipamentos.filter(e=>e.salaId&&(m.salaIds||[]).includes(e.salaId))).filter(e=>e&&e.ativo!==false);
+/* ordem de percurso da ronda: lista de 's:<id>' (sala) e 'e:<id>' (equipamento).
+   Rondas antigas, sem 'ordem', seguem a ordem por setor (salas e depois equipamentos de cada setor). */
+RH.ordemDaRonda=m=>{
+  const existe=k=>k[0]==='s'?!!byId(S.salas,k.slice(2)):!!byId(S.equipamentos,k.slice(2));
+  if(Array.isArray(m.ordem))return m.ordem.filter(existe);
+  const sd=x=>x||'Sem setor',salas=(m.salaIds||[]).map(id=>byId(S.salas,id)).filter(Boolean),eqs=RH.equipsDaRonda(m),ks=[];
+  salas.forEach(s=>{if(!ks.includes(sd(s.setor)))ks.push(sd(s.setor))});
+  eqs.forEach(e=>{const k=sd(RH.setorEq(e));if(!ks.includes(k))ks.push(k)});
+  const o=[];ks.forEach(k=>{salas.filter(s=>sd(s.setor)===k).forEach(s=>o.push('s:'+s.id));eqs.filter(e=>sd(RH.setorEq(e))===k).forEach(e=>o.push('e:'+e.id))});
+  return o};
 RH.salasDaRonda=m=>(m.salaIds||[]).map(id=>byId(S.salas,id)).filter(s=>s&&s.ativo!==false);
 
 /* Uma "execução" de ronda grava um documento por sala visitada, todos com o mesmo

@@ -371,3 +371,6 @@ input[type=text],input[type=password],input[type=number],input[type=date],input[
 .foot{padding:14px clamp(16px,3vw,34px);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
 @media (max-width:560px){.clock .hora{font-size:24px;padding-right:10px}.clock .dt b{font-size:13.5px}}
 @media print{.foot,.topbar{display:none}}
+.ord-row{align-items:center}
+.ord-n{min-width:34px;font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
+.ord-t{flex:1;min-width:0;overflow-wrap:anywhere}

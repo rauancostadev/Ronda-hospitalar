@@ -118,7 +118,7 @@ def main():
         # rondas (cadastro "Nome da ronda")
         add(page, "modelos", fill={"nome": "Ronda UTI"}, check_boxes=["UTI 01", "UTI 02", "Monitor"])
         opts = [o.inner_text() for o in page.query_selector_all("#ff-responsavelId option")]
-        check("Ronda: opção 'Sem responsável' existe", any("Sem responsável" in o for o in opts), opts)
+        check("Ronda: opção 'Todos' existe", any(o.strip()=="Todos" for o in opts), opts)
         page.select_option("#ff-responsavelId", label=[o for o in opts if o.startswith("Iara")][0])
         save(page)
         add(page, "modelos", fill={"nome": "Ronda Farmácia"}, check_boxes=["Farmácia"]); save(page)  # sem responsável

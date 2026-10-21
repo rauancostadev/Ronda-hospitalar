@@ -67,7 +67,7 @@ function startRonda(id){
 
 function itemHtml(k){
   const it=st.R.itens[k],nc=it.r==='NC',tipo=nc?byId(S.tiposNC,it.tipoId):null;
-  return `<div class="it" id="it-${k}"><div class="it-row"><div class="it-t">${esc(it.t)}</div>
+  return `<div class="it" id="it-'+k}"><div class="it-row"><div class="it-t">${esc(it.t)}</div>
   <div class="seg" role="group" aria-label="Resultado">${[['C','Conforme','c'],['NC','Não conforme','n'],['NA','N/A','a']].map(([v,l,c])=>`<button type="button" class="${c}" data-act="res" data-k="${k}" data-r="${v}" aria-pressed="${it.r===v}">${l}</button>`).join('')}</div></div>
   ${nc?`<div class="ncp"><label class="field"><span>Tipo de não conformidade</span><select data-nc="tipoId" data-k="${k}"><option value="">Selecione…</option>${S.tiposNC.map(t=>`<option value="${t.id}" ${it.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></label>
   <label class="field"><span>Severidade</span><select data-nc="sev" data-k="${k}">${[1,2,3,4].map(s=>`<option value="${s}" ${(it.sev||2)==s?'selected':''}>${s} · ${SEV[s]}</option>`).join('')}</select></label>
@@ -110,57 +110,105 @@ async function submitRonda(){
   document.querySelectorAll('.it.miss').forEach(e=>e.classList.remove('miss'));
   if(!its.length){toast('Não há itens para registrar nesta ronda.','bad');return}
   const un=its.filter(([,i])=>!i.r);
-  if(un.length){un.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+un[0][0])?.scrollIntoView({block:'center'});toast(`Faltam ${un.length} item(ns) sem resposta.`,'bad');return}
-  const bad=its.filter(([,i])=>i.r==='NC'&&(!i.tipoId||!(i.desc||'').trim()));
-  if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
-  const b=$('#btn-sub');b.disabled=true;
-  /* ts, execId e ids ficam guardados na ronda: se o salvamento falhar no meio e o inspetor
-     tentar de novo, os mesmos documentos são sobrescritos (nada fica duplicado) */
-  const sub=R.sub||(R.sub={ts:Date.now(),execId:'x'+RH.uid(),ids:{}});
-  const ts=sub.ts,execId=sub.execId,mk=(k,pre)=>sub.ids[k]||(sub.ids[k]=pre+RH.uid());
-  let totNC=0;
-  const ok=await RH.safe(async()=>{
-    totNC=0;
-    for(const bl of R.blocos){
-      const sid=bl.id,sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null,mine=its.filter(([,i])=>i.sid===sid);
-      if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
-      const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
-      const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
-      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
-        pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
-      for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
-        const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
-        if(i.full){fotoId=mk('f:'+k,'f');await RH.put('fotos',fotoId,{data:i.full})}
-        const sev=+i.sev||tipo?.sev||2;
-        await RH.put('ncs',mk('n:'+k,'n'),{ts,rondaId:rid,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,eqId:eq?.id||null,eqNome:eq?.nome||'',itemTexto:i.t,
-          tipoId:i.tipoId,tipoNome:tipo?.nome||'',orient:tipo?.orient||'',sev,desc:i.desc.trim(),thumb:i.thumb||null,fotoId,status:'aberta',resp:respSetor||null,prazo:ts+([0,14,7,3,1][sev])*864e5,inspNome:st.me.nome});
-        totNC++;
-      }
-    }return true});
-  if(ok){st.R=null;toast(totNC?`Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.`:'Ronda registrada sem não conformidades.');RH.go(RH.access.can('historico')?'historico':'ronda')}
-  else b.disabled=false;
+if(un.length){un.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+un[0][0])?.scrollIntoView({block:'center'});toast(Faltam ${un.length} item(ns) sem resposta.,'bad');return}
+const bad=its.filter(([,i])=>i.r==='NC'&&(!i.tipoId||!(i.desc||'').trim()));
+if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
+const b=$('#btn-sub');b.disabled=true;
+/* ts, execId e ids ficam guardados na ronda: se o salvamento falhar no meio e o inspetor
+tentar de novo, os mesmos documentos são sobrescritos (nada fica duplicado) */
+const sub=R.sub||(R.sub={ts:Date.now(),execId:'x'+RH.uid(),ids:{}});
+const ts=sub.ts,execId=sub.execId,mk=(k,pre)=>sub.ids[k]||(sub.ids[k]=pre+RH.uid());
+let totNC=0;
+const ok=await RH.safe(async()=>{
+totNC=0;
+for(const bl of R.blocos){
+const sid=bl.id,sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null,mine=its.filter(([,i])=>i.sid===sid);
+if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
+const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
+const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
+await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
+pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
+for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
+const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
+if(i.full){fotoId=mk('f:'+k,'f');await RH.put('fotos',fotoId,{data:i.full})}
+const sev=+i.sev||tipo?.sev||2;
+await RH.put('ncs',mk('n:'+k,'n'),{ts,rondaId:rid,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,eqId:eq?.id||null,eqNome:eq?.nome||'',itemTexto:i.t,
+tipoId:i.tipoId,tipoNome:tipo?.nome||'',orient:tipo?.orient||'',sev,desc:i.desc.trim(),thumb:i.thumb||null,fotoId,status:'aberta',resp:respSetor||null,prazo:ts+([0,14,7,3,1][sev])*864e5,inspNome:st.me.nome});
+totNC++;
 }
-
+}return true});
+if(ok){st.R=null;toast(totNC?Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.:'Ronda registrada sem não conformidades.');RH.go(RH.access.can('historico')?'historico':'ronda')}
+else b.disabled=false;
+}
+/* ---------- Função Injetada para Compressão de Mídia ---------- */
+function comprimirFotoNativa(file) {
+return new Promise((resolve, reject) => {
+if (!file || !file.type.startsWith('image/')) {
+return reject(new Error('Arquivo inválido.'));
+}
+const reader = new FileReader();
+reader.readAsDataURL(file);
+reader.onload = (event) => {
+const img = new Image();
+img.src = event.target.result;
+img.onload = () => {
+const canvas = document.createElement('canvas');
+let width = img.width;
+let height = img.height;
+const MAX_DIMENSION = 1280;
+if (width > height) {
+if (width > MAX_DIMENSION) {
+height = Math.round((height * MAX_DIMENSION) / width);
+width = MAX_DIMENSION;
+}
+} else {
+if (height > MAX_DIMENSION) {
+width = Math.round((width * MAX_DIMENSION) / height);
+height = MAX_DIMENSION;
+}
+}
+canvas.width = width;
+canvas.height = height;
+const ctx = canvas.getContext('2d');
+ctx.drawImage(img, 0, 0, width, height);
+const thumbBase64 = canvas.toDataURL('image/jpeg', 0.2);
+const fullBase64 = canvas.toDataURL('image/jpeg', 0.7);
+resolve({ thumb: thumbBase64, full: fullBase64 });
+};
+img.onerror = (err) => reject(err);
+};
+reader.onerror = (err) => reject(err);
+});
+}
 /* ---------- eventos ---------- */
 Object.assign(RH.ACT,{
-  pickRonda:el=>startRonda(el.dataset.id),
-  resumeRonda:()=>RH.renderView(true),
-  cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){st.R=null;RH.renderView(true)}},
-  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k)},
-  rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k)},
-  submitRonda
+pickRonda:el=>startRonda(el.dataset.id),
+resumeRonda:()=>RH.renderView(true),
+cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){st.R=null;RH.renderView(true)}},
+res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k)},
+rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k)},
+submitRonda
 });
 RH.ON_CHANGE.push(async el=>{
-  if(el.dataset.nc){
-    const it=st.R.itens[el.dataset.k],f=el.dataset.nc;it[f]=el.value;
-    if(f==='tipoId'){const t=byId(S.tiposNC,el.value);if(t)it.sev=t.sev;repaint(el.dataset.k)} /* mostra a orientação do tipo */
-    return true}
-  if(el.dataset.ncFoto!=null){
-    if(el.files[0]){try{Object.assign(st.R.itens[el.dataset.k],await RH.processImg(el.files[0]));repaint(el.dataset.k)}catch(err){toast('Não foi possível ler a imagem.','bad')}}
-    return true}
-  return false});
+if(el.dataset.nc){
+const it=st.R.itens[el.dataset.k],f=el.dataset.nc;it[f]=el.value;
+if(f==='tipoId'){const t=byId(S.tiposNC,el.value);if(t)it.sev=t.sev;repaint(el.dataset.k)} /* mostra a orientação do tipo */
+return true}
+if(el.dataset.ncFoto!=null){
+if(el.files && el.files[0]){
+try {
+toast('Otimizando imagem...');
+const resultadoComprimido = await comprimirFotoNativa(el.files[0]);
+Object.assign(st.R.itens[el.dataset.k], resultadoComprimido);
+repaint(el.dataset.k);
+} catch(err) {
+toast('Erro ao processar imagem para compressão.','bad');
+}
+}
+return true}
+return false});
 RH.ON_INPUT.push(el=>{
-  if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;return true}
-  if(el.dataset.robs!=null){st.R.obs=el.value;return true}
-  return false});
+if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;return true}
+if(el.dataset.robs!=null){st.R.obs=el.value;return true}
+return false});
 })();

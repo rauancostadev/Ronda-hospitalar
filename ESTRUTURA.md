@@ -18,8 +18,10 @@ Depois de atualizar o site, recarregue a página com Ctrl+F5 (ou limpe o cache n
 |---|---|
 | Administrador | Painel, Nova ronda, Histórico, Não conformidades, Cadastros |
 | Gestor | Painel, Nova ronda, Histórico, Não conformidades |
-| Inspetor | **somente Nova ronda** |
+| Inspetor | Nova ronda e Histórico (**somente as rondas feitas por ele**) |
 
+* **Rascunho automático:** a ronda em andamento é salva no navegador (por usuário) a cada resposta; se a aba for fechada ou recarregada, ela volta preenchida. O rascunho é apagado ao finalizar ou descartar a ronda.
+* **Inacessível:** itens que não puderam ser avaliados são marcados como *Inacessível* e exigem uma descrição do motivo (registros antigos "N/A" aparecem como Inacessível).
 * Ronda **com responsável**: só ele a vê e realiza. Exceção: o **administrador** vê e realiza todas as rondas.
 * Ronda com responsável **"Todos"**: todos os usuários com acesso a Nova ronda a veem e realizam.
 * Excluir uma ronda realizada (Histórico → abrir a ronda → Excluir ronda): administrador e gestor; há uma caixa (desmarcada por padrão) para apagar também as NCs geradas.

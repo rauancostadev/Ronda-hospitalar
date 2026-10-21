@@ -49,6 +49,7 @@ RH.renderView=(force,auto)=>{
   /* atualização automática (dados mudaram em outro aparelho): não redesenha enquanto a pessoa digita/escolhe num campo */
   if(auto&&/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'')&&m.contains(document.activeElement))return;
   if(!RH.access.can(st.page))st.page=RH.access.firstPage();
+  if(!st.R)RH.rondaDraft?.restore();  /* recarregou/voltou: recupera o rascunho da ronda em andamento */
   const page=st.page;
   document.querySelectorAll('#nav button').forEach(b=>{
     const on=b.dataset.p===page;if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
@@ -68,8 +69,8 @@ RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid');sess
 Object.assign(RH.ACT,{
   nav:el=>RH.go(el.dataset.p),
   theme:()=>{const d=document.documentElement,cur=d.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'),next=cur==='dark'?'light':'dark';d.dataset.theme=next;try{localStorage.setItem('rh_theme',next)}catch(e){}if(st.page==='painel')setTimeout(()=>RH.after.painel(),0)},
-  /* não perde uma ronda em andamento sem avisar */
-  logout:()=>{if(st.R&&Object.values(st.R.itens).some(i=>i.r)&&!RH.confirmArm(RH.ACT.logout,'Há uma ronda em andamento. Toque de novo em Sair para descartá-la.'))return;RH.logout()},
+  /* a ronda em andamento fica salva como rascunho (por usuário) e volta no próximo acesso */
+  logout:()=>{RH.rondaDraft?.save();RH.logout()},
   closeModal:RH.closeModal,
   ovClose:()=>{} /* clicar fora da janela não fecha: use o X, Cancelar ou Esc */
 });
@@ -86,8 +87,8 @@ document.addEventListener('change',async e=>{
 });
 document.addEventListener('input',e=>{for(const h of RH.ON_INPUT){if(h(e.target,e))return}});
 document.addEventListener('submit',e=>{e.preventDefault();const h=RH.ON_SUBMIT[e.target.id];if(h)h(e.target)});
-/* evita perder uma ronda em andamento ao fechar/recarregar a página */
-addEventListener('beforeunload',e=>{if(st.R){e.preventDefault();e.returnValue=''}});
+/* a ronda é salva sozinha (rascunho); só avisa se o navegador não conseguiu gravar o rascunho */
+addEventListener('beforeunload',e=>{if(st.R&&st.draftErr){e.preventDefault();e.returnValue=''}});
 
 /* ---------- início ---------- */
 try{const th=localStorage.getItem('rh_theme');if(th)document.documentElement.dataset.theme=th}catch(e){}

@@ -67,8 +67,8 @@ RH.execs=list=>{
   const g=new Map();
   list.forEach(r=>{
     const k=r.execId||r.id;let e=g.get(k);
-    if(!e){e={id:k,nome:r.modeloNome||r.salaNome||'Ronda',modeloId:r.modeloId||null,ts:r.ts,inspNome:r.inspNome,c:0,nc:0,na:0,docs:[]};g.set(k,e)}
-    e.docs.push(r);e.c+=r.c||0;e.nc+=r.nc||0;e.na+=r.na||0;if(r.ts<e.ts)e.ts=r.ts});
+    if(!e){e={id:k,nome:r.modeloNome||r.salaNome||'Ronda',modeloId:r.modeloId||null,ts:r.ts,inspNome:r.inspNome,c:0,nc:0,ina:0,docs:[]};g.set(k,e)}
+    e.docs.push(r);e.c+=r.c||0;e.nc+=r.nc||0;e.ina+=(r.ina||0)+(r.na||0);if(r.ts<e.ts)e.ts=r.ts});
   return [...g.values()].map(e=>({...e,pct:e.c+e.nc?Math.round(e.c/(e.c+e.nc)*1000)/10:100})).sort((a,b)=>b.ts-a.ts);
 };
 })();

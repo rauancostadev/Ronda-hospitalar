@@ -387,6 +387,10 @@ input[type=text],input[type=password],input[type=number],input[type=date],input[
 .ord-n{min-width:34px;font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
 .ord-t{flex:1;min-width:0;overflow-wrap:anywhere}
 
+/* item "Inacessível": campo de descrição obrigatório */
+.ncp.ina{background:var(--surface2,var(--line));border:1px dashed var(--line2)}
+.ncp.ina textarea:invalid{border-color:var(--bad)}
+
 </style>
 </head>
 <body>
@@ -697,8 +701,8 @@ RH.execs=list=>{
   const g=new Map();
   list.forEach(r=>{
     const k=r.execId||r.id;let e=g.get(k);
-    if(!e){e={id:k,nome:r.modeloNome||r.salaNome||'Ronda',modeloId:r.modeloId||null,ts:r.ts,inspNome:r.inspNome,c:0,nc:0,na:0,docs:[]};g.set(k,e)}
-    e.docs.push(r);e.c+=r.c||0;e.nc+=r.nc||0;e.na+=r.na||0;if(r.ts<e.ts)e.ts=r.ts});
+    if(!e){e={id:k,nome:r.modeloNome||r.salaNome||'Ronda',modeloId:r.modeloId||null,ts:r.ts,inspNome:r.inspNome,c:0,nc:0,ina:0,docs:[]};g.set(k,e)}
+    e.docs.push(r);e.c+=r.c||0;e.nc+=r.nc||0;e.ina+=(r.ina||0)+(r.na||0);if(r.ts<e.ts)e.ts=r.ts});
   return [...g.values()].map(e=>({...e,pct:e.c+e.nc?Math.round(e.c/(e.c+e.nc)*1000)/10:100})).sort((a,b)=>b.ts-a.ts);
 };
 })();
@@ -710,7 +714,7 @@ RH.execs=list=>{
 
      Administrador : todas as telas (inclusive Cadastros)
      Gestor        : Painel, Nova ronda, Histórico e Não conformidades
-     Inspetor      : SOMENTE "Nova ronda"
+     Inspetor      : "Nova ronda" e "Histórico" (este mostra apenas as rondas feitas por ele)
 
    Rondas: uma ronda com responsável só é vista/realizada por ele (o Administrador
    vê e realiza todas); uma ronda com responsável "Todos" é vista e realizada por todos
@@ -725,7 +729,7 @@ const RH=window.RH,st=RH.st;
 const PAGES={
   admin:['painel','ronda','historico','ncs','cadastros'],
   gestor:['painel','ronda','historico','ncs'],
-  inspetor:['ronda']
+  inspetor:['ronda','historico']
 };
 const pagesOf=()=>PAGES[st.me&&st.me.role]||PAGES.inspetor;
 const gerencia=()=>!!st.me&&['admin','gestor'].includes(st.me.role);
@@ -734,6 +738,11 @@ RH.access={
   PAGES,
   can:p=>!!st.me&&pagesOf().includes(p),
   firstPage:()=>pagesOf()[0],
+  gerencia,
+  /* o histórico deve ser restrito às rondas do próprio usuário? (todo perfil que não gerencia, inclusive desconhecido) */
+  soPropriasRondas:()=>!!st.me&&!gerencia(),
+  /* a execução/documento de ronda `r` pode ser vista pelo usuário logado? */
+  rondaFeitaVisivel:r=>!!st.me&&(gerencia()||(r.inspId?r.inspId===st.me.id:r.inspNome===st.me.nome)),
   /* a ronda cadastrada `m` aparece para o usuário `u`? */
   rondaVisivel:(m,u)=>!!u&&m.ativo!==false&&(u.role==='admin'||!m.responsavelId||m.responsavelId===u.id),
   canEditNC:()=>gerencia()&&st.canWrite!==false,
@@ -1188,22 +1197,65 @@ function startRonda(id){
   if(!RH.access.rondaVisivel(m,st.me)){toast('Você não tem acesso a esta ronda.','bad');return}
   const blocos=blocosDa(m);
   if(!blocos.length){toast('Esta ronda não tem salas nem equipamentos ativos. Ajuste em Cadastros → Rondas.','bad');return}
-  const itens={};
-  blocos.forEach(bl=>alvos(bl).forEach(al=>(al.cl?.itens||[]).forEach(it=>{itens[prefix(bl.id,al)+it.id]={sid:bl.id,a:al.a,i:al.i,n:al.n,t:it.t,r:''}})));
-  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:'',started:Date.now()};
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens:itensDe(blocos),obs:'',started:Date.now()};
+  saveDraft();
   RH.renderView(true);scrollTo(0,0);
 }
+function itensDe(blocos){
+  const itens={};
+  blocos.forEach(bl=>alvos(bl).forEach(al=>(al.cl?.itens||[]).forEach(it=>{itens[prefix(bl.id,al)+it.id]={sid:bl.id,a:al.a,i:al.i,n:al.n,t:it.t,r:''}})));
+  return itens}
+
+/* ---------- rascunho da ronda em andamento (auto-save) ----------
+   A ronda ativa é gravada no localStorage (uma chave por usuário) a cada resposta/edição.
+   Ao recarregar, fechar a aba ou voltar à tela, ela é restaurada; é apagada ao finalizar ou descartar. */
+const DRAFT_PREFIX='rh_ronda_draft:';
+const draftKey=()=>st.me?DRAFT_PREFIX+st.me.id:null;
+const CAMPOS=['r','tipoId','sev','desc','just','thumb','full'];
+function gravar(k,R,nivel){
+  /* nivel 0 = tudo; 1 = sem a foto grande; 2 = sem nenhuma foto (se o armazenamento estiver cheio) */
+  const itens={};
+  Object.entries(R.itens).forEach(([ik,it])=>{
+    if(!(it.r||it.desc||it.just||it.tipoId))return;
+    const o={};CAMPOS.forEach(c=>{if(it[c]&&!(c==='full'&&nivel>=1)&&!(c==='thumb'&&nivel>=2))o[c]=it[c]});itens[ik]=o});
+  localStorage.setItem(k,JSON.stringify({v:1,uid:st.me.id,modeloId:R.modeloId,nome:R.nome,resp:R.resp,obs:R.obs||'',started:R.started,sub:R.sub||null,itens,savedAt:Date.now()}))}
+let draftT;
+function saveDraft(){
+  clearTimeout(draftT);
+  const k=draftKey();if(!k||!st.R)return;
+  st.draftErr=true;
+  for(let n=0;n<3;n++){try{gravar(k,st.R,n);st.draftErr=false;return}catch(e){}}
+}
+const saveDraftSoon=()=>{clearTimeout(draftT);draftT=setTimeout(saveDraft,300)};
+function clearDraft(){clearTimeout(draftT);st.draftErr=false;try{const k=draftKey();if(k)localStorage.removeItem(k)}catch(e){}}
+function restoreDraft(){
+  const k=draftKey();if(st.R||!k)return;
+  let d;try{d=JSON.parse(localStorage.getItem(k)||'null')}catch(e){d=null}
+  if(!d||d.uid!==st.me.id)return;
+  const m=byId(S.modelos,d.modeloId);
+  if(!m||!RH.access.rondaVisivel(m,st.me)){clearDraft();return}   /* ronda removida ou sem acesso: descarta */
+  const blocos=blocosDa(m),itens=itensDe(blocos);
+  if(!blocos.length){clearDraft();return}
+  Object.entries(d.itens||{}).forEach(([ik,v])=>{if(itens[ik])CAMPOS.forEach(c=>{if(v[c]!=null)itens[ik][c]=v[c]})});
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:d.obs||'',started:d.started||Date.now()};
+  if(d.sub)st.R.sub=d.sub;
+  toast('Ronda em andamento recuperada do rascunho.');
+}
+RH.rondaDraft={save:saveDraft,clear:clearDraft,restore:restoreDraft};
+addEventListener('pagehide',saveDraft);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveDraft()});
 
 function itemHtml(k){
-  const it=st.R.itens[k],nc=it.r==='NC',tipo=nc?byId(S.tiposNC,it.tipoId):null;
+  const it=st.R.itens[k],nc=it.r==='NC',ina=it.r==='IN',tipo=nc?byId(S.tiposNC,it.tipoId):null;
   return `<div class="it" id="it-${k}"><div class="it-row"><div class="it-t">${esc(it.t)}</div>
-  <div class="seg" role="group" aria-label="Resultado">${[['C','Conforme','c'],['NC','Não conforme','n'],['NA','N/A','a']].map(([v,l,c])=>`<button type="button" class="${c}" data-act="res" data-k="${k}" data-r="${v}" aria-pressed="${it.r===v}">${l}</button>`).join('')}</div></div>
+  <div class="seg" role="group" aria-label="Resultado">${[['C','Conforme','c'],['NC','Não conforme','n'],['IN','Inacessível','a']].map(([v,l,c])=>`<button type="button" class="${c}" data-act="res" data-k="${k}" data-r="${v}" aria-pressed="${it.r===v}">${l}</button>`).join('')}</div></div>
   ${nc?`<div class="ncp"><label class="field"><span>Tipo de não conformidade</span><select data-nc="tipoId" data-k="${k}"><option value="">Selecione…</option>${S.tiposNC.map(t=>`<option value="${t.id}" ${it.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></label>
   <label class="field"><span>Severidade</span><select data-nc="sev" data-k="${k}">${[1,2,3,4].map(s=>`<option value="${s}" ${(it.sev||2)==s?'selected':''}>${s} · ${SEV[s]}</option>`).join('')}</select></label>
   ${tipo&&tipo.orient?`<div class="full">${RH.orientBox(tipo.orient)}</div>`:''}
   <label class="field full"><span>Descrição do problema</span><textarea data-nc="desc" data-k="${k}" placeholder="O que foi encontrado, onde e em que condição?">${esc(it.desc||'')}</textarea></label>
   <div class="full ph">${it.thumb?`<img src="${it.thumb}" alt="Foto da não conformidade"><button type="button" class="btn sm" data-act="rmFoto" data-k="${k}">Remover foto</button>`:''}
-  <label class="btn sm" style="cursor:pointer">${ic('cam',16)} ${it.thumb?'Trocar foto':'Anexar foto'}<input class="sr" type="file" accept="image/*" capture="environment" data-nc-foto data-k="${k}"></label></div></div>`:''}</div>`;
+  <label class="btn sm" style="cursor:pointer">${ic('cam',16)} ${it.thumb?'Trocar foto':'Anexar foto'}<input class="sr" type="file" accept="image/*" capture="environment" data-nc-foto data-k="${k}"></label></div></div>`:''}
+  ${ina?`<div class="ncp ina"><label class="field full"><span>Descrição (obrigatória) · por que o item está inacessível?</span><textarea data-ina="just" data-k="${k}" id="ina-${k}" required aria-required="true" placeholder="Explique o motivo (ex.: sala ocupada, equipamento em uso, acesso restrito)">${esc(it.just||'')}</textarea></label></div>`:''}</div>`;
 }
 
 function rondaForm(){
@@ -1242,6 +1294,8 @@ async function submitRonda(){
   if(un.length){un.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+un[0][0])?.scrollIntoView({block:'center'});toast(`Faltam ${un.length} item(ns) sem resposta.`,'bad');return}
   const bad=its.filter(([,i])=>i.r==='NC'&&(!i.tipoId||!(i.desc||'').trim()));
   if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
+  const noJust=its.filter(([,i])=>i.r==='IN'&&!(i.just||'').trim());
+  if(noJust.length){noJust.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+noJust[0][0])?.scrollIntoView({block:'center'});document.getElementById('ina-'+noJust[0][0])?.focus({preventScroll:true});toast('Descreva o motivo de cada item marcado como Inacessível.','bad');return}
   const b=$('#btn-sub');b.disabled=true;
   /* ts, execId e ids ficam guardados na ronda: se o salvamento falhar no meio e o inspetor
      tentar de novo, os mesmos documentos são sobrescritos (nada fica duplicado) */
@@ -1254,9 +1308,9 @@ async function submitRonda(){
       const sid=bl.id,sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null,mine=its.filter(([,i])=>i.sid===sid);
       if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
       const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
-      const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
-      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
-        pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
+      const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,ina=v.filter(i=>i.r==='IN').length,rid=mk('r:'+sid,'r');
+      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,ina,
+        pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r,...(i.r==='IN'?{just:i.just.trim()}:{})}))});
       for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
         const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
         if(i.full){fotoId=mk('f:'+k,'f');await RH.put('fotos',fotoId,{data:i.full})}
@@ -1266,7 +1320,7 @@ async function submitRonda(){
         totNC++;
       }
     }return true});
-  if(ok){st.R=null;toast(totNC?`Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.`:'Ronda registrada sem não conformidades.');RH.go(RH.access.can('historico')?'historico':'ronda')}
+  if(ok){RH.rondaDraft.clear();st.R=null;toast(totNC?`Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.`:'Ronda registrada sem não conformidades.');RH.go(RH.access.gerencia()?'historico':'ronda')}
   else b.disabled=false;
 }
 
@@ -1274,23 +1328,24 @@ async function submitRonda(){
 Object.assign(RH.ACT,{
   pickRonda:el=>startRonda(el.dataset.id),
   resumeRonda:()=>RH.renderView(true),
-  cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){st.R=null;RH.renderView(true)}},
-  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k)},
-  rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k)},
+  cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){RH.rondaDraft.clear();st.R=null;RH.renderView(true)}},
+  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k);saveDraft();if(it.r==='IN')document.getElementById('ina-'+el.dataset.k)?.focus({preventScroll:true})},
+  rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k);saveDraft()},
   submitRonda
 });
 RH.ON_CHANGE.push(async el=>{
   if(el.dataset.nc){
     const it=st.R.itens[el.dataset.k],f=el.dataset.nc;it[f]=el.value;
     if(f==='tipoId'){const t=byId(S.tiposNC,el.value);if(t)it.sev=t.sev;repaint(el.dataset.k)} /* mostra a orientação do tipo */
-    return true}
+    saveDraft();return true}
   if(el.dataset.ncFoto!=null){
-    if(el.files[0]){try{Object.assign(st.R.itens[el.dataset.k],await RH.processImg(el.files[0]));repaint(el.dataset.k)}catch(err){toast('Não foi possível ler a imagem.','bad')}}
+    if(el.files[0]){try{Object.assign(st.R.itens[el.dataset.k],await RH.processImg(el.files[0]));repaint(el.dataset.k);saveDraft()}catch(err){toast('Não foi possível ler a imagem.','bad')}}
     return true}
   return false});
 RH.ON_INPUT.push(el=>{
-  if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;return true}
-  if(el.dataset.robs!=null){st.R.obs=el.value;return true}
+  if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;saveDraftSoon();return true}
+  if(el.dataset.ina==='just'){st.R.itens[el.dataset.k].just=el.value;el.setCustomValidity('');saveDraftSoon();return true}
+  if(el.dataset.robs!=null){st.R.obs=el.value;saveDraftSoon();return true}
   return false});
 })();
 
@@ -1303,14 +1358,18 @@ RH.ON_INPUT.push(el=>{
 const RH=window.RH;
 const {esc,S,HF,pc,fdt,ic,empty,modal,closeModal,toast}=RH;
 
+/* Inspetor: só enxerga as rondas que ele mesmo realizou. Gestor/administrador: todas. */
+const visiveis=()=>RH.access.soPropriasRondas()?S.rondas.filter(RH.access.rondaFeitaVisivel):S.rondas;
+const rotulo=r=>r==='C'?'Conforme':r==='NC'?'Não conforme':'Inacessível';  /* 'NA' = registros antigos */
+
 RH.pages.historico=()=>{
-  const from=Date.now()-HF.periodo*864e5;
-  const ex=RH.execs(S.rondas.filter(r=>r.ts>=from&&(!HF.ronda||r.modeloId===HF.ronda)));
+  const from=Date.now()-HF.periodo*864e5,propria=RH.access.soPropriasRondas();
+  const ex=RH.execs(visiveis().filter(r=>r.ts>=from&&(!HF.ronda||r.modeloId===HF.ronda)));
   const meta=+S.cfg.meta||95;
-  return `<div class="top"><div><h1>Histórico de rondas</h1><p>${ex.length} ronda${ex.length===1?'':'s'} no período</p></div>
+  return `<div class="top"><div><h1>${propria?'Minhas rondas':'Histórico de rondas'}</h1><p>${ex.length} ronda${ex.length===1?'':'s'} no período${propria?' · somente as realizadas por você':''}</p></div>
   <div class="filters"><label class="field"><span>Período</span><select data-set="HF:periodo" data-num="1">${[7,30,90,365].map(d=>`<option value="${d}" ${d===HF.periodo?'selected':''}>Últimos ${d} dias</option>`).join('')}</select></label>
   <label class="field"><span>Ronda</span><select data-set="HF:ronda"><option value="">Todas as rondas</option>${[...S.modelos].sort((a,b)=>a.nome.localeCompare(b.nome)).map(m=>`<option value="${m.id}" ${m.id===HF.ronda?'selected':''}>${esc(m.nome)}</option>`).join('')}</select></label></div></div>
-  ${ex.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Ronda</th><th>Inspetor</th><th>Conformidade</th><th>Itens</th><th>NCs</th></tr></thead><tbody>${ex.slice(0,200).map(e=>`<tr data-act="rondaOpen" data-id="${esc(e.id)}"><td class="num">${fdt(e.ts)}</td><td><b>${esc(e.nome)}</b><small>${qtd(e)}</small></td><td>${esc(e.inspNome)}</td><td class="num"><span class="pill ${e.pct>=meta?'okp':'st-aberta'}">${pc(e.pct)}</span></td><td class="num">${e.c+e.nc+e.na}</td><td class="num">${e.nc||'—'}</td></tr>`).join('')}</tbody></table></div>`:empty('Nenhuma ronda no período','Registre uma ronda em Nova ronda.')}`;
+  ${ex.length?`<div class="tw"><table><thead><tr><th>Data</th><th>Ronda</th><th>Inspetor</th><th>Conformidade</th><th>Itens</th><th>NCs</th></tr></thead><tbody>${ex.slice(0,200).map(e=>`<tr data-act="rondaOpen" data-id="${esc(e.id)}"><td class="num">${fdt(e.ts)}</td><td><b>${esc(e.nome)}</b><small>${qtd(e)}</small></td><td>${esc(e.inspNome)}</td><td class="num"><span class="pill ${e.pct>=meta?'okp':'st-aberta'}">${pc(e.pct)}</span></td><td class="num">${e.c+e.nc+e.ina}</td><td class="num">${e.nc||'—'}</td></tr>`).join('')}</tbody></table></div>`:empty('Nenhuma ronda no período','Registre uma ronda em Nova ronda.')}`;
 };
 
 /* NCs geradas por uma execução (documentos novos têm execId; antigos, só rondaId) */
@@ -1322,14 +1381,14 @@ function qtd(e){
   e.docs.forEach(r=>(r.itens||[]).forEach(i=>{if(i.a==='e')eq.add(i.i)}));
   return [ns?`${ns} sala${ns===1?'':'s'}`:'',eq.size?`${eq.size} equipamento${eq.size===1?'':'s'}`:''].filter(Boolean).join(' · ')||'—'}
 function openRonda(id){
-  const e=RH.execs(S.rondas.filter(r=>(r.execId||r.id)===id))[0];if(!e)return;
+  const e=RH.execs(visiveis().filter(r=>(r.execId||r.id)===id))[0];if(!e)return;
   const porSala=e.docs.map(r=>{
     const g={};(r.itens||[]).forEach(i=>{(g[i.a+i.i]=g[i.a+i.i]||{n:i.n,l:[]}).l.push(i)});
     return `<div><h4 style="font-size:15px;border-bottom:2px solid var(--brand);padding-bottom:4px">${esc(r.salaNome)} <small>${esc(r.setor||'')} · ${pc(r.pct)}</small></h4>
-    ${Object.values(g).map(x=>`<div style="margin-top:10px"><b>${esc(x.n)}</b><div style="margin-top:4px">${x.l.map(i=>`<div style="display:flex;gap:10px;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(i.t)}</span><span style="flex:none" class="pill ${i.r==='C'?'okp':i.r==='NC'?'st-aberta':'off'}">${i.r==='C'?'Conforme':i.r==='NC'?'Não conforme':'N/A'}</span></div>`).join('')}</div></div>`).join('')}</div>`}).join('');
+    ${Object.values(g).map(x=>`<div style="margin-top:10px"><b>${esc(x.n)}</b><div style="margin-top:4px">${x.l.map(i=>`<div style="display:flex;gap:10px;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><span>${esc(i.t)}</span>${i.just?`<small style="display:block;color:var(--ink2)">Motivo: ${esc(i.just)}</small>`:''}</div><span style="flex:none" class="pill ${i.r==='C'?'okp':i.r==='NC'?'st-aberta':'off'}">${rotulo(i.r)}</span></div>`).join('')}</div></div>`).join('')}</div>`}).join('');
   const obs=e.docs.map(r=>r.obs).find(Boolean),nNC=ncsDa(e).length;
   modal(`<div class="mh"><div><h3 style="font-size:16px">${esc(e.nome)}</h3><small>${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</small></div><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
-  <div class="mb"><div class="print-only rep-h"><b>${esc(S.cfg.hospital||'Ronda Hospitalar')}</b><span>Relatório de ronda · ${esc(e.nome)} · ${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</span></div><div class="legend"><span>Conformidade <b>${pc(e.pct)}</b></span><span>Conformes <b>${e.c}</b></span><span>Não conformes <b>${e.nc}</b></span><span>N/A <b>${e.na}</b></span></div>
+  <div class="mb"><div class="print-only rep-h"><b>${esc(S.cfg.hospital||'Ronda Hospitalar')}</b><span>Relatório de ronda · ${esc(e.nome)} · ${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</span></div><div class="legend"><span>Conformidade <b>${pc(e.pct)}</b></span><span>Conformes <b>${e.c}</b></span><span>Não conformes <b>${e.nc}</b></span><span>Inacessíveis <b>${e.ina}</b></span></div>
   ${obs?`<div><b>Observações</b><p style="margin:4px 0 0">${esc(obs)}</p></div>`:''}
   ${porSala}<div class="print-only rep-f"><div>Inspetor: ${esc(e.inspNome)}</div><div>Responsável pelo setor</div></div></div>
   <div class="mf">${RH.access.canDeleteRonda()?`<button type="button" class="btn bad sp" data-act="delRonda" data-id="${esc(e.id)}" id="btn-delronda">${ic('trash',16)} Excluir ronda</button>
@@ -1745,14 +1804,14 @@ RH.seedDemo=async barId=>{
   for(let d=27;d>=0;d--)MD.forEach(([mid,mnome,ss,resp])=>{
     if(rnd()>.6&&d>0)return; if(d===0&&rnd()>.35)return;
     const ts=sod(now-d*day)+(6+Math.floor(rnd()*14))*36e5+Math.floor(rnd()*3600e3); if(ts>now)return;
-    const insp=resp?NOMES[resp]:pick(['Juliana Prado','Ricardo Teixeira','Patrícia Lima']),execId='demo_x'+mid+'_'+d;
+    const inspK=resp||pick(['u3','u4','u5']),insp=NOMES[inspK],execId='demo_x'+mid+'_'+d;
     ss.forEach(sid=>{
       const [, sn,setor,, sresp,ck,q]=SL.find(x=>x[0]===sid);
       const itens=[],ncs=[],p=q*(.75+.5*d/27);
       const alv=[{a:'s',i:'demo_'+sid,n:sn,cl:CL[ck]},...EQ.filter(e=>e[3]===sid).map(e=>({a:'e',i:'demo_'+e[0],n:e[1],cl:CL[e[4]],eq:e}))];
-      alv.forEach(al=>al.cl[2].forEach(t=>{const r=rnd()<p?'NC':(rnd()<.04?'NA':'C');itens.push({a:al.a,i:al.i,n:al.n,t,r});if(r==='NC')ncs.push({al,t})}));
-      const c=itens.filter(x=>x.r==='C').length,nc=ncs.length,na=itens.length-c-nc,rid='demo_r'+sid+'_'+d;
-      D('rondas',rid,{ts,execId,modeloId:'demo_'+mid,modeloNome:mnome,salaId:'demo_'+sid,salaNome:sn,setor,inspId:'demo_u3',inspNome:insp,c,nc,na,pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:'',itens});
+      alv.forEach(al=>al.cl[2].forEach(t=>{const r=rnd()<p?'NC':(rnd()<.04?'IN':'C');itens.push({a:al.a,i:al.i,n:al.n,t,r,...(r==='IN'?{just:'Local inacessível durante a ronda (exemplo).'}:{})});if(r==='NC')ncs.push({al,t})}));
+      const c=itens.filter(x=>x.r==='C').length,nc=ncs.length,ina=itens.length-c-nc,rid='demo_r'+sid+'_'+d;
+      D('rondas',rid,{ts,execId,modeloId:'demo_'+mid,modeloNome:mnome,salaId:'demo_'+sid,salaNome:sn,setor,inspId:'demo_'+inspK,inspNome:insp,c,nc,ina,pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:'',itens});
       ncs.forEach((x,j)=>{
         const txt=x.t.toLowerCase();
         const ti=txt.includes('limpeza')||txt.includes('lixeira')||txt.includes('lavatório')?'t1':txt.includes('calibra')||txt.includes('manutenção')||txt.includes('etiqueta')?'t3':txt.includes('temperatura')?'t5':txt.includes('alarme')?'t6':txt.includes('validade')&&txt.includes('medic')?'t4':txt.includes('sinaliza')||txt.includes('saídas')||txt.includes('extintor')?'t7':txt.includes('epi')?'t8':txt.includes('registro')||txt.includes('checklist')||txt.includes('lacre')?'t9':rnd()<.5?'t2':'t9';
@@ -1929,6 +1988,7 @@ RH.renderView=(force,auto)=>{
   /* atualização automática (dados mudaram em outro aparelho): não redesenha enquanto a pessoa digita/escolhe num campo */
   if(auto&&/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'')&&m.contains(document.activeElement))return;
   if(!RH.access.can(st.page))st.page=RH.access.firstPage();
+  if(!st.R)RH.rondaDraft?.restore();  /* recarregou/voltou: recupera o rascunho da ronda em andamento */
   const page=st.page;
   document.querySelectorAll('#nav button').forEach(b=>{
     const on=b.dataset.p===page;if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
@@ -1948,8 +2008,8 @@ RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid');sess
 Object.assign(RH.ACT,{
   nav:el=>RH.go(el.dataset.p),
   theme:()=>{const d=document.documentElement,cur=d.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'),next=cur==='dark'?'light':'dark';d.dataset.theme=next;try{localStorage.setItem('rh_theme',next)}catch(e){}if(st.page==='painel')setTimeout(()=>RH.after.painel(),0)},
-  /* não perde uma ronda em andamento sem avisar */
-  logout:()=>{if(st.R&&Object.values(st.R.itens).some(i=>i.r)&&!RH.confirmArm(RH.ACT.logout,'Há uma ronda em andamento. Toque de novo em Sair para descartá-la.'))return;RH.logout()},
+  /* a ronda em andamento fica salva como rascunho (por usuário) e volta no próximo acesso */
+  logout:()=>{RH.rondaDraft?.save();RH.logout()},
   closeModal:RH.closeModal,
   ovClose:()=>{} /* clicar fora da janela não fecha: use o X, Cancelar ou Esc */
 });
@@ -1966,8 +2026,8 @@ document.addEventListener('change',async e=>{
 });
 document.addEventListener('input',e=>{for(const h of RH.ON_INPUT){if(h(e.target,e))return}});
 document.addEventListener('submit',e=>{e.preventDefault();const h=RH.ON_SUBMIT[e.target.id];if(h)h(e.target)});
-/* evita perder uma ronda em andamento ao fechar/recarregar a página */
-addEventListener('beforeunload',e=>{if(st.R){e.preventDefault();e.returnValue=''}});
+/* a ronda é salva sozinha (rascunho); só avisa se o navegador não conseguiu gravar o rascunho */
+addEventListener('beforeunload',e=>{if(st.R&&st.draftErr){e.preventDefault();e.returnValue=''}});
 
 /* ---------- início ---------- */
 try{const th=localStorage.getItem('rh_theme');if(th)document.documentElement.dataset.theme=th}catch(e){}

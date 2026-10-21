@@ -374,3 +374,7 @@ input[type=text],input[type=password],input[type=number],input[type=date],input[
 .ord-row{align-items:center}
 .ord-n{min-width:34px;font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
 .ord-t{flex:1;min-width:0;overflow-wrap:anywhere}
+
+/* item "Inacessível": campo de descrição obrigatório */
+.ncp.ina{background:var(--surface2,var(--line));border:1px dashed var(--line2)}
+.ncp.ina textarea:invalid{border-color:var(--bad)}

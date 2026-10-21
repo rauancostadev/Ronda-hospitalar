@@ -140,9 +140,9 @@ def main():
 
         # ---- inspetora Iara
         login(page, "iara", "Senha@123")
-        check("Inspetor vê apenas 'Nova ronda' no menu", nav_labels(page) == ["Nova ronda"], nav_labels(page))
+        check("Inspetor vê 'Nova ronda' e 'Histórico' no menu", nav_labels(page) == ["Nova ronda", "Histórico"], nav_labels(page))
         check("Inspetor cai direto em Nova ronda", page.inner_text("h1") == "Nova ronda")
-        page.evaluate("RH.go('painel');RH.go('cadastros');RH.go('ncs');RH.go('historico')")
+        page.evaluate("RH.go('painel');RH.go('cadastros');RH.go('ncs')")
         check("Inspetor não consegue abrir outras telas", page.inner_text("h1") == "Nova ronda")
         cards = [c.inner_text() for c in page.query_selector_all("[data-act=pickRonda]")]
         check("Iara vê as duas rondas (a sua e a sem responsável)", len(cards) == 2, cards)

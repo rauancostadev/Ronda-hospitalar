@@ -59,22 +59,65 @@ function startRonda(id){
   if(!RH.access.rondaVisivel(m,st.me)){toast('Você não tem acesso a esta ronda.','bad');return}
   const blocos=blocosDa(m);
   if(!blocos.length){toast('Esta ronda não tem salas nem equipamentos ativos. Ajuste em Cadastros → Rondas.','bad');return}
-  const itens={};
-  blocos.forEach(bl=>alvos(bl).forEach(al=>(al.cl?.itens||[]).forEach(it=>{itens[prefix(bl.id,al)+it.id]={sid:bl.id,a:al.a,i:al.i,n:al.n,t:it.t,r:''}})));
-  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:'',started:Date.now()};
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens:itensDe(blocos),obs:'',started:Date.now()};
+  saveDraft();
   RH.renderView(true);scrollTo(0,0);
 }
+function itensDe(blocos){
+  const itens={};
+  blocos.forEach(bl=>alvos(bl).forEach(al=>(al.cl?.itens||[]).forEach(it=>{itens[prefix(bl.id,al)+it.id]={sid:bl.id,a:al.a,i:al.i,n:al.n,t:it.t,r:''}})));
+  return itens}
+
+/* ---------- rascunho da ronda em andamento (auto-save) ----------
+   A ronda ativa é gravada no localStorage (uma chave por usuário) a cada resposta/edição.
+   Ao recarregar, fechar a aba ou voltar à tela, ela é restaurada; é apagada ao finalizar ou descartar. */
+const DRAFT_PREFIX='rh_ronda_draft:';
+const draftKey=()=>st.me?DRAFT_PREFIX+st.me.id:null;
+const CAMPOS=['r','tipoId','sev','desc','just','thumb','full'];
+function gravar(k,R,nivel){
+  /* nivel 0 = tudo; 1 = sem a foto grande; 2 = sem nenhuma foto (se o armazenamento estiver cheio) */
+  const itens={};
+  Object.entries(R.itens).forEach(([ik,it])=>{
+    if(!(it.r||it.desc||it.just||it.tipoId))return;
+    const o={};CAMPOS.forEach(c=>{if(it[c]&&!(c==='full'&&nivel>=1)&&!(c==='thumb'&&nivel>=2))o[c]=it[c]});itens[ik]=o});
+  localStorage.setItem(k,JSON.stringify({v:1,uid:st.me.id,modeloId:R.modeloId,nome:R.nome,resp:R.resp,obs:R.obs||'',started:R.started,sub:R.sub||null,itens,savedAt:Date.now()}))}
+let draftT;
+function saveDraft(){
+  clearTimeout(draftT);
+  const k=draftKey();if(!k||!st.R)return;
+  st.draftErr=true;
+  for(let n=0;n<3;n++){try{gravar(k,st.R,n);st.draftErr=false;return}catch(e){}}
+}
+const saveDraftSoon=()=>{clearTimeout(draftT);draftT=setTimeout(saveDraft,300)};
+function clearDraft(){clearTimeout(draftT);st.draftErr=false;try{const k=draftKey();if(k)localStorage.removeItem(k)}catch(e){}}
+function restoreDraft(){
+  const k=draftKey();if(st.R||!k)return;
+  let d;try{d=JSON.parse(localStorage.getItem(k)||'null')}catch(e){d=null}
+  if(!d||d.uid!==st.me.id)return;
+  const m=byId(S.modelos,d.modeloId);
+  if(!m||!RH.access.rondaVisivel(m,st.me)){clearDraft();return}   /* ronda removida ou sem acesso: descarta */
+  const blocos=blocosDa(m),itens=itensDe(blocos);
+  if(!blocos.length){clearDraft();return}
+  Object.entries(d.itens||{}).forEach(([ik,v])=>{if(itens[ik])CAMPOS.forEach(c=>{if(v[c]!=null)itens[ik][c]=v[c]})});
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:d.obs||'',started:d.started||Date.now()};
+  if(d.sub)st.R.sub=d.sub;
+  toast('Ronda em andamento recuperada do rascunho.');
+}
+RH.rondaDraft={save:saveDraft,clear:clearDraft,restore:restoreDraft};
+addEventListener('pagehide',saveDraft);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveDraft()});
 
 function itemHtml(k){
-  const it=st.R.itens[k],nc=it.r==='NC',tipo=nc?byId(S.tiposNC,it.tipoId):null;
+  const it=st.R.itens[k],nc=it.r==='NC',ina=it.r==='IN',tipo=nc?byId(S.tiposNC,it.tipoId):null;
   return `<div class="it" id="it-${k}"><div class="it-row"><div class="it-t">${esc(it.t)}</div>
-  <div class="seg" role="group" aria-label="Resultado">${[['C','Conforme','c'],['NC','Não conforme','n'],['NA','N/A','a']].map(([v,l,c])=>`<button type="button" class="${c}" data-act="res" data-k="${k}" data-r="${v}" aria-pressed="${it.r===v}">${l}</button>`).join('')}</div></div>
+  <div class="seg" role="group" aria-label="Resultado">${[['C','Conforme','c'],['NC','Não conforme','n'],['IN','Inacessível','a']].map(([v,l,c])=>`<button type="button" class="${c}" data-act="res" data-k="${k}" data-r="${v}" aria-pressed="${it.r===v}">${l}</button>`).join('')}</div></div>
   ${nc?`<div class="ncp"><label class="field"><span>Tipo de não conformidade</span><select data-nc="tipoId" data-k="${k}"><option value="">Selecione…</option>${S.tiposNC.map(t=>`<option value="${t.id}" ${it.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></label>
   <label class="field"><span>Severidade</span><select data-nc="sev" data-k="${k}">${[1,2,3,4].map(s=>`<option value="${s}" ${(it.sev||2)==s?'selected':''}>${s} · ${SEV[s]}</option>`).join('')}</select></label>
   ${tipo&&tipo.orient?`<div class="full">${RH.orientBox(tipo.orient)}</div>`:''}
   <label class="field full"><span>Descrição do problema</span><textarea data-nc="desc" data-k="${k}" placeholder="O que foi encontrado, onde e em que condição?">${esc(it.desc||'')}</textarea></label>
   <div class="full ph">${it.thumb?`<img src="${it.thumb}" alt="Foto da não conformidade"><button type="button" class="btn sm" data-act="rmFoto" data-k="${k}">Remover foto</button>`:''}
-  <label class="btn sm" style="cursor:pointer">${ic('cam',16)} ${it.thumb?'Trocar foto':'Anexar foto'}<input class="sr" type="file" accept="image/*" capture="environment" data-nc-foto data-k="${k}"></label></div></div>`:''}</div>`;
+  <label class="btn sm" style="cursor:pointer">${ic('cam',16)} ${it.thumb?'Trocar foto':'Anexar foto'}<input class="sr" type="file" accept="image/*" capture="environment" data-nc-foto data-k="${k}"></label></div></div>`:''}
+  ${ina?`<div class="ncp ina"><label class="field full"><span>Descrição (obrigatória) · por que o item está inacessível?</span><textarea data-ina="just" data-k="${k}" id="ina-${k}" required aria-required="true" placeholder="Explique o motivo (ex.: sala ocupada, equipamento em uso, acesso restrito)">${esc(it.just||'')}</textarea></label></div>`:''}</div>`;
 }
 
 function rondaForm(){
@@ -113,6 +156,8 @@ async function submitRonda(){
   if(un.length){un.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+un[0][0])?.scrollIntoView({block:'center'});toast(`Faltam ${un.length} item(ns) sem resposta.`,'bad');return}
   const bad=its.filter(([,i])=>i.r==='NC'&&(!i.tipoId||!(i.desc||'').trim()));
   if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
+  const noJust=its.filter(([,i])=>i.r==='IN'&&!(i.just||'').trim());
+  if(noJust.length){noJust.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+noJust[0][0])?.scrollIntoView({block:'center'});document.getElementById('ina-'+noJust[0][0])?.focus({preventScroll:true});toast('Descreva o motivo de cada item marcado como Inacessível.','bad');return}
   const b=$('#btn-sub');b.disabled=true;
   /* ts, execId e ids ficam guardados na ronda: se o salvamento falhar no meio e o inspetor
      tentar de novo, os mesmos documentos são sobrescritos (nada fica duplicado) */
@@ -125,9 +170,9 @@ async function submitRonda(){
       const sid=bl.id,sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null,mine=its.filter(([,i])=>i.sid===sid);
       if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
       const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
-      const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
-      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
-        pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
+      const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,ina=v.filter(i=>i.r==='IN').length,rid=mk('r:'+sid,'r');
+      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,ina,
+        pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r,...(i.r==='IN'?{just:i.just.trim()}:{})}))});
       for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
         const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
         if(i.full){fotoId=mk('f:'+k,'f');await RH.put('fotos',fotoId,{data:i.full})}
@@ -137,7 +182,7 @@ async function submitRonda(){
         totNC++;
       }
     }return true});
-  if(ok){st.R=null;toast(totNC?`Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.`:'Ronda registrada sem não conformidades.');RH.go(RH.access.can('historico')?'historico':'ronda')}
+  if(ok){RH.rondaDraft.clear();st.R=null;toast(totNC?`Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.`:'Ronda registrada sem não conformidades.');RH.go(RH.access.gerencia()?'historico':'ronda')}
   else b.disabled=false;
 }
 
@@ -145,22 +190,23 @@ async function submitRonda(){
 Object.assign(RH.ACT,{
   pickRonda:el=>startRonda(el.dataset.id),
   resumeRonda:()=>RH.renderView(true),
-  cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){st.R=null;RH.renderView(true)}},
-  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k)},
-  rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k)},
+  cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){RH.rondaDraft.clear();st.R=null;RH.renderView(true)}},
+  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k);saveDraft();if(it.r==='IN')document.getElementById('ina-'+el.dataset.k)?.focus({preventScroll:true})},
+  rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k);saveDraft()},
   submitRonda
 });
 RH.ON_CHANGE.push(async el=>{
   if(el.dataset.nc){
     const it=st.R.itens[el.dataset.k],f=el.dataset.nc;it[f]=el.value;
     if(f==='tipoId'){const t=byId(S.tiposNC,el.value);if(t)it.sev=t.sev;repaint(el.dataset.k)} /* mostra a orientação do tipo */
-    return true}
+    saveDraft();return true}
   if(el.dataset.ncFoto!=null){
-    if(el.files[0]){try{Object.assign(st.R.itens[el.dataset.k],await RH.processImg(el.files[0]));repaint(el.dataset.k)}catch(err){toast('Não foi possível ler a imagem.','bad')}}
+    if(el.files[0]){try{Object.assign(st.R.itens[el.dataset.k],await RH.processImg(el.files[0]));repaint(el.dataset.k);saveDraft()}catch(err){toast('Não foi possível ler a imagem.','bad')}}
     return true}
   return false});
 RH.ON_INPUT.push(el=>{
-  if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;return true}
-  if(el.dataset.robs!=null){st.R.obs=el.value;return true}
+  if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;saveDraftSoon();return true}
+  if(el.dataset.ina==='just'){st.R.itens[el.dataset.k].just=el.value;el.setCustomValidity('');saveDraftSoon();return true}
+  if(el.dataset.robs!=null){st.R.obs=el.value;saveDraftSoon();return true}
   return false});
 })();

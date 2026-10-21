@@ -18,7 +18,7 @@ function blocosDa(m) {
   const o = [];
   RH.ordemDaRonda(m).forEach(k => {
     const id = k.slice(2);
-    if (k[0] === 's') {
+    if (k === 's') {
       const s = byId(S.salas, id);
       if (s && s.ativo !== false) o.push({ id: s.id, tipo: 'sala', salaId: s.id, setor: s.setor || 'Sem setor' });
     } else {
@@ -67,7 +67,7 @@ RH.pages.ronda = () => {
     <div class="f"><span>${salas.length} sala${salas.length === 1 ? '' : 's'}</span><span>${ne} equipamento${ne === 1 ? '' : 's'}</span></div>
     <div class="f"><span>Responsável: ${m.responsavelId ? esc(userName(m.responsavelId)) : 'todos os inspetores'}</span></div>
     <small>${esc(RH.agenda.resumo(m))}${prox ? ` · próxima: ${RH.agenda.fmtSlot(prox)}` : ''}</small>
-    <small>${l ? `Última realização ${ago(l.ts)}` : 'Nunca realizada'}</small></button>`;
+    <small>${l ? `Última realização ${ago(l.ts)}` : 'Never realizada'}</small></button>`;
   }).join('')}</div>` : vazio}`;
 };
 
@@ -89,7 +89,7 @@ function itemHtml(k) {
   <div class="seg" role="group" aria-label="Resultado">${[['C', 'Conforme', 'c'], ['NC', 'Não conforme', 'n'], ['NA', 'N/A', 'a']].map(([v, l, c]) => `<button type="button" class="${c}" data-act="res" data-k="${k}" data-r="${v}" aria-pressed="${it.r === v}">${l}</button>`).join('')}</div></div>
   ${nc ? `<div class="ncp"><label class="field"><span>Tipo de não conformidade</span><select data-nc="tipoId" data-k="${k}"><option value="">Selecione…</option>${S.tiposNC.map(t => `<option value="${t.id}" ${it.tipoId === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
   <label class="field"><span>Severidade</span><select data-nc="sev" data-k="${k}">${[1, 2, 3, 4].map(s => `<option value="${s}" ${(it.sev || 2) == s ? 'selected' : ''}>${s} · ${SEV[s]}</option>`).join('')}</select></label>
-  ${tipo&&tipo.orient ? `<div class="full">${RH.orientBox(tipo.orient)}</div>` : ''}
+  ${tipo && tipo.orient ? `<div class="full">${RH.orientBox(tipo.orient)}</div>` : ''}
   <label class="field full"><span>Descrição do problema</span><textarea data-nc="desc" data-k="${k}" placeholder="O que foi encontrado, onde e em que condição?">${esc(it.desc || '')}</textarea></label>
   <div class="full ph">${it.thumb ? `<img src="${it.thumb}" alt="Foto da não conformidade"><button type="button" class="btn sm" data-act="rmFoto" data-k="${k}">Remover foto</button>` : ''}
   <label class="btn sm" style="cursor:pointer">${ic('cam', 16)} ${it.thumb ? 'Trocar foto' : 'Anexar foto'}<input class="sr" type="file" accept="image/*" capture="environment" data-nc-foto data-k="${k}"></label></div></div>` : ''}</div>`;
@@ -171,7 +171,7 @@ toast(totNC ? Ronda registrada com ${totNC} não conformidade${totNC > 1 ? 's' :
 RH.go(RH.access.can('historico') ? 'historico' : 'ronda');
 } else b.disabled = false;
 }
-/* ---------- Compressão Baseada em Objetos Binários de Memória ---------- */
+/* ---------- Compressão por Blob (Nativa e Leve) ---------- */
 function comprimirFotoSegura(file) {
 return new Promise((resolve, reject) => {
 if (!file || !file.type.startsWith('image/')) {

@@ -110,57 +110,123 @@ async function submitRonda(){
   document.querySelectorAll('.it.miss').forEach(e=>e.classList.remove('miss'));
   if(!its.length){toast('Não há itens para registrar nesta ronda.','bad');return}
   const un=its.filter(([,i])=>!i.r);
-  if(un.length){un.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+un[0][0])?.scrollIntoView({block:'center'});toast(`Faltam ${un.length} item(ns) sem resposta.`,'bad');return}
-  const bad=its.filter(([,i])=>i.r==='NC'&&(!i.tipoId||!(i.desc||'').trim()));
-  if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
-  const b=$('#btn-sub');b.disabled=true;
-  /* ts, execId e ids ficam guardados na ronda: se o salvamento falhar no meio e o inspetor
-     tentar de novo, os mesmos documentos são sobrescritos (nada fica duplicado) */
-  const sub=R.sub||(R.sub={ts:Date.now(),execId:'x'+RH.uid(),ids:{}});
-  const ts=sub.ts,execId=sub.execId,mk=(k,pre)=>sub.ids[k]||(sub.ids[k]=pre+RH.uid());
-  let totNC=0;
-  const ok=await RH.safe(async()=>{
-    totNC=0;
-    for(const bl of R.blocos){
-      const sid=bl.id,sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null,mine=its.filter(([,i])=>i.sid===sid);
-      if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
-      const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
-      const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
-      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
-        pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
-      for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
-        const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
-        if(i.full){fotoId=mk('f:'+k,'f');await RH.put('fotos',fotoId,{data:i.full})}
-        const sev=+i.sev||tipo?.sev||2;
-        await RH.put('ncs',mk('n:'+k,'n'),{ts,rondaId:rid,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,eqId:eq?.id||null,eqNome:eq?.nome||'',itemTexto:i.t,
-          tipoId:i.tipoId,tipoNome:tipo?.nome||'',orient:tipo?.orient||'',sev,desc:i.desc.trim(),thumb:i.thumb||null,fotoId,status:'aberta',resp:respSetor||null,prazo:ts+([0,14,7,3,1][sev])*864e5,inspNome:st.me.nome});
-        totNC++;
-      }
-    }return true});
-  if(ok){st.R=null;toast(totNC?`Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.`:'Ronda registrada sem não conformidades.');RH.go(RH.access.can('historico')?'historico':'ronda')}
-  else b.disabled=false;
+   if(un.length){un.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+un[0][0])?.scrollIntoView({block:'center'});toast(Faltam ${un.length} item(ns) sem resposta.,'bad');return}
+const bad=its.filter(([,i])=>i.r==='NC'&&(!i.tipoId||!(i.desc||'').trim()));
+if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
+const b=$('#btn-sub');b.disabled=true;
+const sub=R.sub||(R.sub={ts:Date.now(),execId:'x'+RH.uid(),ids:{}});
+const ts=sub.ts,execId=sub.execId,mk=(k,pre)=>sub.ids[k]||(sub.ids[k]=pre+RH.uid());
+let totNC=0;
+const ok=await RH.safe(async()=>{
+totNC=0;
+for(const bl of R.blocos){
+const sid=bl.id,sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null,mine=its.filter(([,i])=>i.sid===sid);
+if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
+const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
+const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,na=v.filter(i=>i.r==='NA').length,rid=mk('r:'+sid,'r');
+await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,na,
+pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r}))});
+for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
+const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
+// Se houver arquivo comprimido temporário, lê apenas agora para salvar no banco
+if(i._rawBlob){
+fotoId=mk('f:'+k,'f');
+const base64Final = await new Promise((res) => {
+const r = new FileReader();
+r.readAsDataURL(i._rawBlob);
+r.onloadend = () => res(r.result);
+});
+await RH.put('fotos',fotoId,{data:base64Final});
 }
-
+const sev=+i.sev||tipo?.sev||2;
+await RH.put('ncs',mk('n:'+k,'n'),{ts,rondaId:rid,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,eqId:eq?.id||null,eqNome:eq?.nome||'',itemTexto:i.t,
+tipoId:i.tipoId,tipoNome:tipo?.nome||'',orient:tipo?.orient||'',sev,desc:i.desc.trim(),thumb:i.thumb||null,fotoId,status:'aberta',resp:respSetor||null,prazo:ts+([0,14,7,3,1][sev])*864e5,inspNome:st.me.nome});
+totNC++;
+}
+}return true});
+if(ok){
+// Libera os links virtuais criados da memória do dispositivo
+its.forEach(([,i])=>{if(i.thumb && i.thumb.startsWith('blob:')) URL.revokeObjectURL(i.thumb)});
+st.R=null;
+toast(totNC?Ronda registrada com ${totNC} não conformidade${totNC>1?'s':''}.:'Ronda registrada sem não conformidades.');
+RH.go(RH.access.can('historico')?'historico':'ronda');
+} else b.disabled=false;
+}
+/* ---------- Compressão com Links de Memória Virtuais (Evita travamentos) ---------- */
+function comprimirFotoSegura(file) {
+return new Promise((resolve, reject) => {
+if (!file || !file.type.startsWith('image/')) {
+return reject(new Error('Formato inválido.'));
+}
+const reader = new FileReader();
+reader.readAsDataURL(file);
+reader.onload = (event) => {
+const img = new Image();
+img.src = event.target.result;
+img.onload = () => {
+const canvas = document.createElement('canvas');
+let width = img.width;
+let height = img.height;
+const MAX_DIM = 1024; // Resolução ideal para web leve e rápida
+if (width > height) {
+if (width > MAX_DIM) { height = Math.round((height * MAX_DIM) / width); width = MAX_DIM; }
+} else {
+if (height > MAX_DIM) { width = Math.round((width * MAX_DIM) / height); height = MAX_DIM; }
+}
+canvas.width = width;
+canvas.height = height;
+const ctx = canvas.getContext('2d');
+ctx.drawImage(img, 0, 0, width, height);
+// Transforma a foto em um Blob comprimido nativo
+canvas.toBlob((blob) => {
+if (!blob) return reject(new Error('Erro de processamento.'));
+// Link levíssimo de visualização virtual na tela (consome 0 de RAM)
+const urlVisual = URL.createObjectURL(blob);
+resolve({
+thumb: urlVisual,
+full: null,
+_rawBlob: blob
+});
+}, 'image/jpeg', 0.65); // Reduz o peso da foto brutalmente mantendo boa qualidade
+};
+};
+});
+}
 /* ---------- eventos ---------- */
 Object.assign(RH.ACT,{
-  pickRonda:el=>startRonda(el.dataset.id),
-  resumeRonda:()=>RH.renderView(true),
-  cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){st.R=null;RH.renderView(true)}},
-  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k)},
-  rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k)},
-  submitRonda
+pickRonda:el=>startRonda(el.dataset.id),
+resumeRonda:()=>RH.renderView(true),
+cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){
+Object.values(st.R.itens).forEach(i=>{if(i.thumb && i.thumb.startsWith('blob:')) URL.revokeObjectURL(i.thumb)});
+st.R=null;RH.renderView(true);
+}},
+res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k)},
+rmFoto:el=>{const it=st.R.itens[el.dataset.k];if(it.thumb && it.thumb.startsWith('blob:')) URL.revokeObjectURL(it.thumb);it.thumb=it.full=it._rawBlob=null;repaint(el.dataset.k)},
+submitRonda
 });
 RH.ON_CHANGE.push(async el=>{
-  if(el.dataset.nc){
-    const it=st.R.itens[el.dataset.k],f=el.dataset.nc;it[f]=el.value;
-    if(f==='tipoId'){const t=byId(S.tiposNC,el.value);if(t)it.sev=t.sev;repaint(el.dataset.k)} /* mostra a orientação do tipo */
-    return true}
-  if(el.dataset.ncFoto!=null){
-    if(el.files[0]){try{Object.assign(st.R.itens[el.dataset.k],await RH.processImg(el.files[0]));repaint(el.dataset.k)}catch(err){toast('Não foi possível ler a imagem.','bad')}}
-    return true}
-  return false});
+if(el.dataset.nc){
+const it=st.R.itens[el.dataset.k],f=el.dataset.nc;it[f]=el.value;
+if(f==='tipoId'){const t=byId(S.tiposNC,el.value);if(t)it.sev=t.sev;repaint(el.dataset.k)}
+return true}
+if(el.dataset.ncFoto!=null){
+if(el.files && el.files[0]){
+try {
+toast('Reduzindo peso da imagem...');
+const midiaOtimizada = await comprimirFotoSegura(el.files[0]);
+// Remove link virtual antigo se o usuário estiver substituindo uma foto existente
+const itemAntigo = st.R.itens[el.dataset.k];
+if(itemAntigo && itemAntigo.thumb && itemAntigo.thumb.startsWith('blob:')) URL.revokeObjectURL(itemAntigo.thumb);
+Object.assign(st.R.itens[el.dataset.k], midiaOtimizada);
+repaint(el.dataset.k);
+} catch(err) {
+toast('Não foi possível carregar esta mídia.','bad');
+}
+}
+return true}
+return false});
 RH.ON_INPUT.push(el=>{
-  if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;return true}
-  if(el.dataset.robs!=null){st.R.obs=el.value;return true}
-  return false});
+if(el.dataset.nc==='desc'){st.R.itens[el.dataset.k].desc=el.value;return true}
+if(el.dataset.robs!=null){st.R.obs=el.value;return true}
+return false});
 })();

@@ -1294,7 +1294,8 @@ function itemHtml(k){
   ${tipo&&tipo.orient?`<div class="full">${RH.orientBox(tipo.orient)}</div>`:''}
   <label class="field full"><span>Descrição do problema</span><textarea data-nc="desc" data-k="${k}" placeholder="O que foi encontrado, onde e em que condição?">${esc(it.desc||'')}</textarea></label>
   <div class="full ph">${it.thumb?`<img src="${it.thumb}" alt="Foto da não conformidade"><button type="button" class="btn sm" data-act="rmFoto" data-k="${k}">Remover foto</button>`:''}
-  <label class="btn sm" style="cursor:pointer">${ic('cam',16)} ${it.thumb?'Trocar foto':'Anexar foto'}<input class="sr" type="file" accept="image/*" data-nc-foto data-k="${k}"></label></div></div>`:''}
+  <button type="button" class="btn sm" data-act="camOpen" data-k="${k}">${ic('cam',16)} ${it.thumb?'Tirar outra foto':'Tirar foto'}</button>
+  <label class="btn sm" style="cursor:pointer">${ic('up',16)} Da galeria<input class="sr" type="file" accept="image/*" data-nc-foto data-k="${k}"></label></div></div>`:''}
   ${ina?`<div class="ncp ina"><label class="field full"><span>Descrição (obrigatória) · por que o item está inacessível?</span><textarea data-ina="just" data-k="${k}" id="ina-${k}" required aria-required="true" placeholder="Explique o motivo (ex.: sala ocupada, equipamento em uso, acesso restrito)">${esc(it.just||'')}</textarea></label></div>`:''}</div>`;
 }
 
@@ -1364,12 +1365,42 @@ async function submitRonda(){
   else b.disabled=false;
 }
 
+/* ---------- câmera dentro da página ----------
+   Abre a câmera do aparelho num painel próprio (getUserMedia), sem chamar o app de câmera do Android
+   (que em alguns celulares falha com "insuficiência de memória" e recarrega a página). */
+let camStream=null;
+function camClose(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}document.getElementById('cam-ov')?.remove()}
+async function camOpen(k,facing){
+  camClose();
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Este navegador não permite abrir a câmera aqui. Use "Da galeria".','bad');return}
+  try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing||'environment'},width:{ideal:1280},height:{ideal:960}},audio:false})}
+  catch(e){const neg=e&&(e.name==='NotAllowedError'||e.name==='SecurityError');
+    toast(neg?'Permissão da câmera negada. Libere a câmera para este site nas configurações do navegador, ou use "Da galeria".':'Não foi possível abrir a câmera ('+((e&&e.name)||'erro')+'). Use "Da galeria".','bad');return}
+  const o=document.createElement('div');o.id='cam-ov';o.setAttribute('role','dialog');o.setAttribute('aria-modal','true');o.setAttribute('aria-label','Câmera');
+  o.style.cssText='position:fixed;inset:0;z-index:200;background:#000;display:flex;flex-direction:column';
+  o.innerHTML=`<video id="cam-v" playsinline muted autoplay style="flex:1;min-height:0;width:100%;object-fit:contain;background:#000"></video>
+  <div style="display:flex;gap:10px;justify-content:center;align-items:center;padding:14px;background:#000;flex-wrap:wrap">
+  <button type="button" class="btn" id="cam-x">Cancelar</button><button type="button" class="btn pri" id="cam-shot" style="min-width:150px">${ic('cam',18)} Capturar</button><button type="button" class="btn" id="cam-sw">Trocar câmera</button></div>`;
+  document.body.appendChild(o);
+  const v=o.querySelector('#cam-v');v.srcObject=camStream;try{await v.play()}catch(e){}
+  o.querySelector('#cam-x').onclick=camClose;
+  o.querySelector('#cam-sw').onclick=()=>camOpen(k,(camStream&&camStream.getVideoTracks()[0].getSettings().facingMode)==='user'?'environment':'user');
+  o.querySelector('#cam-shot').onclick=async()=>{
+    if(!v.videoWidth){toast('A câmera ainda está iniciando. Tente de novo.','bad');return}
+    const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));c.width=c.height=0;camClose();
+    const it=st.R&&st.R.itens[k];if(!it||!blob)return;
+    try{Object.assign(it,await RH.processImg(blob));repaint(k);saveDraft()}catch(err){toast('Não foi possível processar a foto.','bad')}};
+}
+addEventListener('pagehide',camClose);
+
 /* ---------- eventos ---------- */
 Object.assign(RH.ACT,{
   pickRonda:el=>startRonda(el.dataset.id),
   resumeRonda:()=>RH.renderView(true),
   cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){RH.rondaDraft.clear();st.R=null;RH.renderView(true)}},
   res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k);saveDraft();if(it.r==='IN')document.getElementById('ina-'+el.dataset.k)?.focus({preventScroll:true})},
+  camOpen:el=>camOpen(el.dataset.k),
   rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k);saveDraft()},
   submitRonda
 });

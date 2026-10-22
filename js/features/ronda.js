@@ -80,7 +80,7 @@ function gravar(k,R,nivel){
   Object.entries(R.itens).forEach(([ik,it])=>{
     if(!(it.r||it.desc||it.just||it.tipoId))return;
     const o={};CAMPOS.forEach(c=>{if(it[c]&&!(c==='full'&&nivel>=1)&&!(c==='thumb'&&nivel>=2))o[c]=it[c]});itens[ik]=o});
-  localStorage.setItem(k,JSON.stringify({v:1,uid:st.me.id,modeloId:R.modeloId,nome:R.nome,resp:R.resp,obs:R.obs||'',started:R.started,sub:R.sub||null,itens,savedAt:Date.now()}))}
+  localStorage.setItem(k,JSON.stringify({v:1,uid:st.me.id,modeloId:R.modeloId,nome:R.nome,resp:R.resp,obs:R.obs||'',started:R.started,sub:R.sub||null,foco:R.foco||null,itens,savedAt:Date.now()}))}
 let draftT;
 function saveDraft(){
   clearTimeout(draftT);
@@ -101,9 +101,14 @@ function restoreDraft(){
   Object.entries(d.itens||{}).forEach(([ik,v])=>{if(itens[ik])CAMPOS.forEach(c=>{if(v[c]!=null)itens[ik][c]=v[c]})});
   st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:d.obs||'',started:d.started||Date.now()};
   if(d.sub)st.R.sub=d.sub;
-  toast('Ronda em andamento recuperada do rascunho.');
+  const foco=d.foco&&itens[d.foco]?d.foco:null;
+  if(foco){st.R.foco=foco;setTimeout(()=>document.getElementById('it-'+foco)?.scrollIntoView({block:'center'}),150)}
+  /* celulares com pouca memória podem recarregar a página enquanto a câmera está aberta */
+  toast(foco&&!itens[foco].thumb?'A página foi recarregada ao abrir a câmera. Sua ronda foi recuperada; anexe a foto novamente.':'Ronda em andamento recuperada do rascunho.');
 }
 RH.rondaDraft={save:saveDraft,clear:clearDraft,restore:restoreDraft};
+/* ao tocar em "Anexar foto", guarda qual item era e salva já (a câmera pode descarregar a página) */
+document.addEventListener('click',e=>{const f=e.target.closest&&e.target.closest('[data-nc-foto]');if(f&&st.R){st.R.foco=f.dataset.k;saveDraft()}},true);
 addEventListener('pagehide',saveDraft);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveDraft()});
 

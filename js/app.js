@@ -63,7 +63,7 @@ RH.renderView=(force,auto)=>{
   RH.after[page]?.();
 };
 
-RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid');sessionStorage.removeItem('rh_page');sessionStorage.removeItem('rh_cadtab')}catch(e){}st.screen='';RH.renderRoot()};
+RH.logout=()=>{st.me=null;st.R=null;try{localStorage.removeItem('rh_resume');sessionStorage.removeItem('rh_uid');sessionStorage.removeItem('rh_page');sessionStorage.removeItem('rh_cadtab')}catch(e){}st.screen='';RH.renderRoot()};
 
 /* ---------- ações do menu e do modal ---------- */
 Object.assign(RH.ACT,{

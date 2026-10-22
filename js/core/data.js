@@ -27,7 +27,12 @@ function sync(col){
 function onData(){
   if(!st.booted){
     if(COLS.every(c=>ready[c])){st.booted=true;
-      try{const id=sessionStorage.getItem('rh_uid');const u=id&&byId(S.users,id);if(u&&u.ativo!==false){st.me=u;const pg=sessionStorage.getItem('rh_page'),ct=sessionStorage.getItem('rh_cadtab');if(pg)st.page=pg;if(ct)st.cadTab=ct}}catch(e){}
+      try{let id=sessionStorage.getItem('rh_uid'),pg=sessionStorage.getItem('rh_page');
+        /* o celular pode descarregar a página enquanto a câmera está aberta e perder a sessão da aba:
+           um marcador curto (15 min), gravado ao tocar em "Anexar foto", devolve o usuário à ronda em andamento */
+        if(!id){const r=JSON.parse(localStorage.getItem('rh_resume')||'null');if(r&&r.uid&&Date.now()-r.ts<9e5){id=r.uid;pg=r.page;sessionStorage.setItem('rh_uid',id)}}
+        localStorage.removeItem('rh_resume');
+        const u=id&&byId(S.users,id);if(u&&u.ativo!==false){st.me=u;const ct=sessionStorage.getItem('rh_cadtab');if(pg)st.page=pg;if(ct)st.cadTab=ct}}catch(e){}
       RH.renderRoot()}
     return}
   if(st.me){const u=byId(S.users,st.me.id);if(!u||u.ativo===false){RH.logout();return}st.me=u}

@@ -108,7 +108,7 @@ function restoreDraft(){
 }
 RH.rondaDraft={save:saveDraft,clear:clearDraft,restore:restoreDraft};
 /* ao tocar em "Anexar foto", guarda qual item era e salva já (a câmera pode descarregar a página) */
-document.addEventListener('click',e=>{const f=e.target.closest&&e.target.closest('[data-nc-foto]');if(f&&st.R){st.R.foco=f.dataset.k;saveDraft()}},true);
+document.addEventListener('click',e=>{const f=e.target.closest&&e.target.closest('[data-nc-foto]');if(f&&st.R){st.R.foco=f.dataset.k;saveDraft();try{localStorage.setItem('rh_resume',JSON.stringify({uid:st.me.id,page:'ronda',ts:Date.now()}))}catch(x){}}},true);
 addEventListener('pagehide',saveDraft);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveDraft()});
 

@@ -15,6 +15,8 @@ const RH=window.RH;
 /* decodifica o arquivo uma única vez → {src, w, h, free()} */
 async function decode(file){
   if(window.createImageBitmap){
+    /* foto de câmera (grande): já decodifica reduzida (≈1200 px) em vez de 12 MP+ inteiros na memória */
+    if(file.size>4e5){try{const b=await createImageBitmap(file,{resizeWidth:1200,resizeQuality:'medium',imageOrientation:'from-image'});return{src:b,w:b.width,h:b.height,free:()=>{try{b.close()}catch(e){}}}}catch(e){}}
     try{const b=await createImageBitmap(file,{imageOrientation:'from-image'});return{src:b,w:b.width,h:b.height,free:()=>{try{b.close()}catch(e){}}}}
     catch(e){/* formato/opção não suportada: tenta o caminho clássico abaixo */}}
   const url=URL.createObjectURL(file);

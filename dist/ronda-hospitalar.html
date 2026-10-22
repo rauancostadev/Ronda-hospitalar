@@ -939,6 +939,8 @@ const RH=window.RH;
 /* decodifica o arquivo uma única vez → {src, w, h, free()} */
 async function decode(file){
   if(window.createImageBitmap){
+    /* foto de câmera (grande): já decodifica reduzida (≈1200 px) em vez de 12 MP+ inteiros na memória */
+    if(file.size>4e5){try{const b=await createImageBitmap(file,{resizeWidth:1200,resizeQuality:'medium',imageOrientation:'from-image'});return{src:b,w:b.width,h:b.height,free:()=>{try{b.close()}catch(e){}}}}catch(e){}}
     try{const b=await createImageBitmap(file,{imageOrientation:'from-image'});return{src:b,w:b.width,h:b.height,free:()=>{try{b.close()}catch(e){}}}}
     catch(e){/* formato/opção não suportada: tenta o caminho clássico abaixo */}}
   const url=URL.createObjectURL(file);
@@ -1031,7 +1033,12 @@ function sync(col){
 function onData(){
   if(!st.booted){
     if(COLS.every(c=>ready[c])){st.booted=true;
-      try{const id=sessionStorage.getItem('rh_uid');const u=id&&byId(S.users,id);if(u&&u.ativo!==false){st.me=u;const pg=sessionStorage.getItem('rh_page'),ct=sessionStorage.getItem('rh_cadtab');if(pg)st.page=pg;if(ct)st.cadTab=ct}}catch(e){}
+      try{let id=sessionStorage.getItem('rh_uid'),pg=sessionStorage.getItem('rh_page');
+        /* o celular pode descarregar a página enquanto a câmera está aberta e perder a sessão da aba:
+           um marcador curto (15 min), gravado ao tocar em "Anexar foto", devolve o usuário à ronda em andamento */
+        if(!id){const r=JSON.parse(localStorage.getItem('rh_resume')||'null');if(r&&r.uid&&Date.now()-r.ts<9e5){id=r.uid;pg=r.page;sessionStorage.setItem('rh_uid',id)}}
+        localStorage.removeItem('rh_resume');
+        const u=id&&byId(S.users,id);if(u&&u.ativo!==false){st.me=u;const ct=sessionStorage.getItem('rh_cadtab');if(pg)st.page=pg;if(ct)st.cadTab=ct}}catch(e){}
       RH.renderRoot()}
     return}
   if(st.me){const u=byId(S.users,st.me.id);if(!u||u.ativo===false){RH.logout();return}st.me=u}
@@ -1274,7 +1281,7 @@ function restoreDraft(){
 }
 RH.rondaDraft={save:saveDraft,clear:clearDraft,restore:restoreDraft};
 /* ao tocar em "Anexar foto", guarda qual item era e salva já (a câmera pode descarregar a página) */
-document.addEventListener('click',e=>{const f=e.target.closest&&e.target.closest('[data-nc-foto]');if(f&&st.R){st.R.foco=f.dataset.k;saveDraft()}},true);
+document.addEventListener('click',e=>{const f=e.target.closest&&e.target.closest('[data-nc-foto]');if(f&&st.R){st.R.foco=f.dataset.k;saveDraft();try{localStorage.setItem('rh_resume',JSON.stringify({uid:st.me.id,page:'ronda',ts:Date.now()}))}catch(x){}}},true);
 addEventListener('pagehide',saveDraft);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveDraft()});
 
@@ -2035,7 +2042,7 @@ RH.renderView=(force,auto)=>{
   RH.after[page]?.();
 };
 
-RH.logout=()=>{st.me=null;st.R=null;try{sessionStorage.removeItem('rh_uid');sessionStorage.removeItem('rh_page');sessionStorage.removeItem('rh_cadtab')}catch(e){}st.screen='';RH.renderRoot()};
+RH.logout=()=>{st.me=null;st.R=null;try{localStorage.removeItem('rh_resume');sessionStorage.removeItem('rh_uid');sessionStorage.removeItem('rh_page');sessionStorage.removeItem('rh_cadtab')}catch(e){}st.screen='';RH.renderRoot()};
 
 /* ---------- ações do menu e do modal ---------- */
 Object.assign(RH.ACT,{

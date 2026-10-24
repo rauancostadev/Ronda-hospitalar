@@ -146,7 +146,6 @@ def main():
         page.click("tbody tr"); page.wait_for_selector(".mod")
         check("Histórico só lista ocorrências: sem itens conformes", page.locator(".mod .pill.okp").filter(has_text="Conforme").count() == 0)
         check("Histórico sem ocorrências mostra aviso", "Nenhuma não conformidade" in page.inner_text(".mod"))
-        check("Histórico mostra o selo de presença", "Presença: código + Wi-Fi" in page.inner_text(".mod") and "4 leituras rejeitadas" in page.inner_text(".mod"))
         page.click("[data-act=closeModal]")
 
         # ---------- modo registrar: não bloqueia ----------
@@ -179,7 +178,7 @@ def main():
         check("Histórico lista a NC com tipo e descrição", "Não conforme" in txt and "Piso sujo." in txt and "Higienização deficiente" in txt, txt)
         check("Histórico mostra a foto capturada na ronda", page.locator(".mod img[data-foto]").count() == 1 and page.evaluate("document.querySelector('.mod img[data-foto]').src.startsWith('data:image')"))
         check("Histórico não lista itens conformes", page.locator(".mod .pill.okp").filter(has_text="Conforme").count() == 0 and txt.count("Limpeza adequada") == 1, txt)
-        check("Salas sem ocorrência aparecem só em 'Sem ocorrências'", "Sem ocorrências:" in txt)
+        check("Sem lista 'Sem ocorrências' e sem nome de sala repetido", "Sem ocorrências" not in txt and txt.count("UTI 01") == 1, txt)
         page.click("[data-act=closeModal]")
 
         # ---------- painel real da câmera (câmera falsa + BarcodeDetector simulado) ----------

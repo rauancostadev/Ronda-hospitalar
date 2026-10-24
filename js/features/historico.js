@@ -36,15 +36,14 @@ function openRonda(id){
     return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="display:flex;gap:10px;justify-content:space-between;align-items:center"><div style="min-width:0"><span>${esc(i.t)}</span>${i.just?`<small style="display:block;color:var(--ink2)">Motivo: ${esc(i.just)}</small>`:''}</div><span style="flex:none" class="pill ${i.r==='NC'?'st-aberta':'off'}">${rotulo(i.r)}</span></div>
     ${n?`<div style="margin-top:6px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">${n.thumb||n.fotoId?`<img class="big-img" ${n.fotoId?`data-foto="${esc(n.fotoId)}"`:''} src="${n.thumb?esc(n.thumb):''}" alt="Foto da não conformidade" style="max-width:220px;max-height:160px;object-fit:cover;border-radius:8px">`:''}
       <div style="flex:1;min-width:180px"><small style="display:block"><b>${esc(n.tipoNome||'')}</b> · severidade ${esc(SEV[n.sev]||n.sev)}</small>${n.desc?`<small style="display:block;color:var(--ink2)">${esc(n.desc)}</small>`:''}</div></div>`:''}</div>`};
-  const comOc=[],semOc=[];
+  const comOc=[];
   e.docs.forEach(r=>{
     const oc=(r.itens||[]).filter(i=>i.r==='NC'||i.r==='IN'||i.r==='NA');
-    if(!oc.length){semOc.push(`${esc(r.salaNome)} ${RH.local.badge(r.presenca)}`);return}
+    if(!oc.length)return;
     const g={};oc.forEach(i=>{(g[i.a+i.i]=g[i.a+i.i]||{n:i.n,l:[]}).l.push(i)});
     comOc.push(`<div><h4 style="font-size:15px;border-bottom:2px solid var(--brand);padding-bottom:4px">${esc(r.salaNome)} <small>${esc(r.setor||'')} · ${pc(r.pct)}</small> ${RH.local.badge(r.presenca)}</h4>
-    ${Object.values(g).map(x=>`<div style="margin-top:10px"><b>${esc(x.n)}</b><div style="margin-top:4px">${x.l.map(i=>itemOc(r,i)).join('')}</div></div>`).join('')}</div>`)});
-  const porSala=(comOc.length?comOc.join(''):'<div class="empty"><b>Nenhuma não conformidade ou item inacessível</b>Todos os itens desta ronda estavam conformes.</div>')
-    +(semOc.length?`<div style="margin-top:14px;color:var(--ink2)"><small>Sem ocorrências:</small>${semOc.map(x=>`<div style="padding:3px 0"><small>${x}</small></div>`).join('')}</div>`:'');
+    ${Object.values(g).map(x=>`<div style="margin-top:10px">${x.n===r.salaNome?'':`<b>${esc(x.n)}</b>`}<div style="margin-top:4px">${x.l.map(i=>itemOc(r,i)).join('')}</div></div>`).join('')}</div>`)});
+  const porSala=(comOc.length?comOc.join(''):'<div class="empty"><b>Nenhuma não conformidade ou item inacessível</b>Todos os itens desta ronda estavam conformes.</div>');
   const obs=e.docs.map(r=>r.obs).find(Boolean),nNC=ncsDa(e).length;
   modal(`<div class="mh"><div><h3 style="font-size:16px">${esc(e.nome)}</h3><small>${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</small></div><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
   <div class="mb"><div class="print-only rep-h"><b>${esc(S.cfg.hospital||'Ronda Hospitalar')}</b><span>Relatório de ronda · ${esc(e.nome)} · ${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</span></div><div class="legend"><span>Conformidade <b>${pc(e.pct)}</b></span><span>Conformes <b>${e.c}</b></span><span>Não conformes <b>${e.nc}</b></span><span>Inacessíveis <b>${e.ina}</b></span></div>

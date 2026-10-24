@@ -45,6 +45,7 @@ js/core/                núcleo (sem telas)
   images.js               redução de fotos
   ui.js                   aviso, tooltip, modal, selos, caixa de orientação
   data.js                 gravar/atualizar/apagar, sincronização em tempo real
+  local.js                presença no local: regras (código + BSSID), leitura de BSSID nativo, leitor de código de barras
 js/features/            uma tela (ou função) por arquivo
   auth.js                 login e primeiro acesso
   conta.js                "Senha" no menu: o próprio usuário altera a sua senha
@@ -83,3 +84,5 @@ RH_PAGE=dist/ronda-hospitalar-teste.html python3 tests/e2e.py   # testa o arquiv
 - **Duplicar**: botão em cada linha de Cadastros; abre o formulário já preenchido como novo cadastro (nome + "(cópia)"; usuário sem login/senha; equipamento sem patrimônio).
 - **Painel**: cada gráfico/lista tem botão para minimizar (lembrado neste navegador) e há "Minimizar tudo / Expandir tudo".
 - **Visual institucional**: paleta azul hospitalar (claro e escuro), superfícies planas com bordas finas, barra de contexto (data, tipo de base, perfil) e tela de acesso reformulada. O detalhe de uma ronda no Histórico tem **Imprimir relatório** (cabeçalho do hospital e campos de assinatura).
+
+- **Presença no local** (código de barras + antena Wi-Fi): veja `VALIDACAO-LOCAL.md`. Campos `codigoLocal` e `bssids` em salas/equipamentos; política `valLocal`/`valBssid` em `config/main`; evidência em `rondas.presenca`.

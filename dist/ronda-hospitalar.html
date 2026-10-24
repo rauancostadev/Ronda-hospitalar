@@ -391,6 +391,14 @@ input[type=text],input[type=password],input[type=number],input[type=date],input[
 .ncp.ina{background:var(--surface2,var(--line));border:1px dashed var(--line2)}
 .ncp.ina textarea:invalid{border-color:var(--bad)}
 
+/* ---------- presença no local (código de barras + antena) ---------- */
+.chk-box{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 14px;margin-bottom:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.chk-box.pend.blk{border-color:var(--warn);background:var(--warn-bg);color:var(--warn)}
+.chk-box.pend .err{margin-top:4px;min-height:0}
+.chk-box.semcod{color:var(--muted)}
+.chk-box small{color:var(--muted)}
+.grp>.items.locked{opacity:.4;filter:grayscale(.5);pointer-events:none;user-select:none}
+
 </style>
 </head>
 <body>
@@ -1048,6 +1056,255 @@ RH.syncAll=()=>COLS.forEach(sync);
 })();
 
 </script>
+<script>
+/* ==========================================================================
+   Núcleo · validação de presença no local (código de barras + antena Wi-Fi / BSSID)
+
+   Cada sala ou equipamento pode ter:
+     - codigoLocal : valor do código de barras/QR impresso e fixado no local;
+     - bssids      : antenas Wi-Fi (BSSID) que cobrem o local, uma por linha. Aceita curinga
+                     no final (aa:bb:cc:dd:*:*) para antenas com vários rádios/SSIDs.
+   Equipamento sem BSSID próprio herda os BSSIDs das salas do mesmo setor.
+
+   Política (Cadastros → Hospital, gravada em config/main):
+     valLocal : 'off' (padrão, comportamento antigo) | 'registrar' (grava a evidência, não bloqueia)
+                | 'exigir' (o checklist do local só é liberado após ler o código; não finaliza sem isso)
+     valBssid : 'se_disponivel' (padrão) | 'exigir' (sem BSSID legível = leitura rejeitada)
+
+   O BSSID NÃO pode ser lido por JavaScript em navegador comum. Ele só vem de uma camada nativa
+   (Capacitor + @capgo/capacitor-wifi, ou uma ponte própria window.RondaNativo.getBssid()).
+   Veja VALIDACAO-LOCAL.md.
+
+   API: window.RH.local  (a parte de regras — validar, parseBssids… — não depende da tela e é testada em tests/local.test.js)
+   ========================================================================== */
+(()=>{
+const RH=window.RH,{S,st,byId}=RH;
+
+/* ---------- normalização ---------- */
+const normCodigo=s=>String(s??'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();
+
+/* 6 octetos (hex ou *), aceitando aa:bb:.., aa-bb-.., aabb.ccdd.eeff e aabbccddeeff */
+function octetos(s){
+  s=String(s??'').trim().toLowerCase();
+  if(/^[0-9a-f]{12}$/.test(s))return s.match(/../g);
+  if(/^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$/.test(s))return s.replace(/\./g,'').match(/../g);
+  const p=s.split(/[:-]/);
+  return p.length===6&&p.every(x=>/^([0-9a-f]{2}|\*)$/.test(x))?p:null}
+/* valores que o Android devolve quando NÃO tem permissão/localização ligada não são antenas reais */
+const BSSID_FALSOS=new Set(['00:00:00:00:00:00','02:00:00:00:00:00','ff:ff:ff:ff:ff:ff']);
+function normBssid(s){const o=octetos(s);if(!o||o.includes('*'))return '';const j=o.join(':');return BSSID_FALSOS.has(j)?'':j}
+
+/* texto do cadastro → {lista:[padrões normalizados], invalidos:[trechos com erro]} */
+function parseBssids(txt){
+  const lista=[],invalidos=[];
+  String(txt??'').split(/[\n,;]+/).map(x=>x.trim()).filter(Boolean).forEach(t=>{
+    const o=octetos(t),w=o?o.indexOf('*'):-1;
+    /* curinga só no final e com pelo menos 3 octetos fixos (senão qualquer antena passaria) */
+    if(!o||(w!==-1&&(w<3||o.slice(w).some(x=>x!=='*')))||o.join(':')==='00:00:00:00:00:00'||o.join(':')==='02:00:00:00:00:00'){invalidos.push(t);return}
+    const j=o.join(':');if(!lista.includes(j))lista.push(j)});
+  return {lista,invalidos}}
+function bssidConfere(b,lista){
+  const o=octetos(b);if(!o||o.includes('*'))return false;
+  return lista.some(p=>{const q=octetos(p);return !!q&&q.every((x,i)=>x==='*'||x===o[i])})}
+
+/* ---------- política e alvos ---------- */
+const politica=()=>({
+  modo:['registrar','exigir'].includes(S.cfg.valLocal)?S.cfg.valLocal:'off',
+  bssid:S.cfg.valBssid==='exigir'?'exigir':'se_disponivel'});
+
+const alvos=()=>[
+  ...S.salas.map(s=>({tipo:'s',id:s.id,nome:s.nome,codigoLocal:s.codigoLocal})),
+  ...S.equipamentos.map(e=>({tipo:'e',id:e.id,nome:e.nome,codigoLocal:e.codigoLocal}))];
+
+/* cada bloco da ronda tem exatamente um alvo: a sala ou o equipamento */
+function alvoDoBloco(bl){
+  const sala=bl.tipo==='sala',x=sala?byId(S.salas,bl.salaId):byId(S.equipamentos,(bl.eqIds||[])[0]);
+  if(!x)return null;
+  let bssids=x.bssids||'';
+  const setor=sala?x.setor:RH.setorEq(x);
+  if(!sala&&!parseBssids(bssids).lista.length&&setor)bssids=S.salas.filter(s=>s.setor===setor).map(s=>s.bssids||'').join('\n');
+  return {tipo:sala?'s':'e',id:x.id,nome:x.nome,setor,codigoLocal:x.codigoLocal||'',bssids}}
+
+/* ---------- regra de validação (função pura) ----------
+   entrada : alvo {nome,codigoLocal,bssids}, lido (texto do código), bssid {ok,valor,msg}, pol {bssid}
+   saída   : {ok, codigo, rede, msg}
+     codigo: ok | sem_cadastro | vazio | codigo_incorreto | codigo_outro_local | rede_fora | rede_indisponivel
+     rede  : confere | fora | indisponivel | sem_cadastro | nao_exigida | nao_verificada            */
+function validar({alvo,lido,bssid,pol}){
+  const R=(ok,codigo,msg,rede)=>({ok,codigo,msg,rede});
+  const L=normCodigo(lido),esperado=normCodigo(alvo.codigoLocal);
+  if(!L)return R(false,'vazio','Nenhum código foi lido.','nao_verificada');
+  if(!esperado)return R(true,'sem_cadastro','Este local não tem código cadastrado: presença não verificada.','nao_exigida');
+  if(L!==esperado){
+    const dono=alvos().find(a=>normCodigo(a.codigoLocal)===L);
+    return dono?R(false,'codigo_outro_local',`Este código pertence a "${dono.nome}", não a "${alvo.nome}".`,'nao_verificada')
+               :R(false,'codigo_incorreto',`O código lido não corresponde a "${alvo.nome}".`,'nao_verificada')}
+  const lista=parseBssids(alvo.bssids).lista;
+  if(!lista.length)return R(true,'ok','Código confere.','sem_cadastro');
+  if(bssid&&bssid.ok)return bssidConfere(bssid.valor,lista)
+    ?R(true,'ok','Código e antena Wi-Fi conferem.','confere')
+    :R(false,'rede_fora',`Você está conectado a uma antena Wi-Fi que não pertence a "${alvo.nome}".`,'fora');
+  if(pol&&pol.bssid==='exigir')return R(false,'rede_indisponivel',(bssid&&bssid.msg)||'Não foi possível identificar a antena Wi-Fi deste aparelho.','indisponivel');
+  return R(true,'ok','Código confere (antena Wi-Fi não verificada neste aparelho).','indisponivel')}
+
+/* ---------- leitura do BSSID (camada nativa) ---------- */
+const MSG_BSSID={
+  navegador:'Este navegador não permite ler a antena Wi-Fi. Use o aplicativo da Ronda (Android).',
+  permissao:'Permita o acesso à localização e deixe a localização do aparelho ligada para identificar a antena Wi-Fi.',
+  semwifi:'O aparelho não está conectado a uma rede Wi-Fi.',
+  erro:'Não foi possível ler a antena Wi-Fi.'};
+const comTempo=(p,ms)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no(new Error('timeout')),ms))]);
+
+async function bssidBruto(){
+  if(typeof RH.local.provedorBssid==='function'){const r=await RH.local.provedorBssid();return typeof r==='string'?{valor:r}:(r||{})}
+  const cap=window.Capacitor,W=cap&&cap.Plugins&&cap.Plugins.CapacitorWifi;
+  if(W&&(!cap.isNativePlatform||cap.isNativePlatform())){
+    let p=await W.checkPermissions();
+    if(!p||p.location!=='granted')p=await W.requestPermissions();
+    if(!p||p.location!=='granted')return {motivo:'permissao'};
+    const i=await W.getWifiInfo();return {valor:i&&i.bssid}}
+  if(window.RondaNativo&&typeof window.RondaNativo.getBssid==='function')return {valor:await window.RondaNativo.getBssid()};
+  return {motivo:'navegador'}}
+
+/* → {ok, valor, motivo, msg}; nunca lança erro */
+async function lerBssid(){
+  try{
+    const r=await comTempo(Promise.resolve(bssidBruto()),4000),v=normBssid(r.valor);
+    if(v)return {ok:true,valor:v};
+    const motivo=r.motivo||(r.valor?'permissao':'semwifi');   /* 02:00:… = sem permissão ou localização desligada */
+    return {ok:false,valor:'',motivo,msg:MSG_BSSID[motivo]||MSG_BSSID.erro}
+  }catch(e){return {ok:false,valor:'',motivo:'erro',msg:MSG_BSSID.erro}}}
+
+/* ---------- leitura do código de barras (câmera) ---------- */
+const FORMATOS=['code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e','qr_code','data_matrix'];
+let zxP=null;
+function carregaZXing(){
+  if(window.ZXing)return Promise.resolve(window.ZXing);
+  /* 1º arquivo local (se você copiou para js/vendor/), 2º CDN fixada em versão */
+  const fontes=['js/vendor/zxing-library.min.js','https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'];
+  return zxP||(zxP=(async()=>{
+    for(const src of fontes){
+      try{await new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+        if(window.ZXing)return window.ZXing}catch(e){}}
+    zxP=null;throw new Error('zxing')})())}
+
+/* devolve uma função async () => texto|null que lê o quadro atual do <video> */
+async function criaDecodificador(video){
+  if('BarcodeDetector' in window){
+    try{
+      const sup=await window.BarcodeDetector.getSupportedFormats(),f=FORMATOS.filter(x=>sup.includes(x));
+      if(f.length){const d=new window.BarcodeDetector({formats:f});return async()=>{const r=await d.detect(video);return r[0]&&r[0].rawValue||null}}
+    }catch(e){}}
+  const Z=await carregaZXing(),B=Z.BarcodeFormat,h=new Map();
+  h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[B.CODE_128,B.CODE_39,B.CODE_93,B.CODABAR,B.EAN_13,B.EAN_8,B.ITF,B.UPC_A,B.UPC_E,B.QR_CODE,B.DATA_MATRIX]);
+  h.set(Z.DecodeHintType.TRY_HARDER,true);
+  const reader=new Z.MultiFormatReader();reader.setHints(h);
+  const c=document.createElement('canvas'),x=c.getContext('2d',{willReadFrequently:true});
+  return async()=>{
+    if(!video.videoWidth)return null;
+    c.width=video.videoWidth;c.height=video.videoHeight;x.drawImage(video,0,0);
+    try{return reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c)))).getText()}catch(e){return null}}}
+
+/* abre a câmera num painel próprio; devolve o texto lido ou null (cancelado/sem câmera) */
+async function escanear(titulo){
+  if(typeof RH.local.leitor==='function')return RH.local.leitor(titulo);   /* gancho para testes ou leitor externo */
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){RH.toast('Este navegador não permite abrir a câmera aqui.','bad');return null}
+  let stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false})}
+  catch(e){RH.toast(e&&(e.name==='NotAllowedError'||e.name==='SecurityError')?'Permissão da câmera negada. Libere a câmera para este site/aplicativo.':'Não foi possível abrir a câmera.','bad');return null}
+  return new Promise(resolve=>{
+    const o=document.createElement('div');o.id='scan-ov';o.setAttribute('role','dialog');o.setAttribute('aria-modal','true');o.setAttribute('aria-label','Leitor de código de barras');
+    o.style.cssText='position:fixed;inset:0;z-index:210;background:#000;display:flex;flex-direction:column;color:#fff';
+    o.innerHTML=`<div style="padding:12px 16px;font-weight:600">${RH.esc(titulo||'Leia o código de barras do local')}</div>
+      <div style="position:relative;flex:1;min-height:0"><video id="scan-v" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover;background:#000"></video>
+      <div style="position:absolute;left:8%;right:8%;top:38%;height:24%;border:2px solid #4cc27f;border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.35)"></div></div>
+      <div id="scan-msg" style="padding:10px 16px;text-align:center;font-size:13px">Aponte a câmera para a etiqueta fixada no local.</div>
+      <div style="display:flex;justify-content:center;padding:0 14px 16px"><button type="button" class="btn" id="scan-x">Cancelar</button></div>`;
+    document.body.appendChild(o);
+    let fim=false,timer=null;
+    const parar=v=>{if(fim)return;fim=true;clearInterval(timer);stream.getTracks().forEach(t=>t.stop());o.remove();resolve(v)};
+    o.querySelector('#scan-x').onclick=()=>parar(null);
+    addEventListener('pagehide',()=>parar(null),{once:true});
+    const v=o.querySelector('#scan-v');v.srcObject=stream;v.play().catch(()=>{});
+    criaDecodificador(v).then(dec=>{
+      let ocupado=false;
+      timer=setInterval(async()=>{
+        if(ocupado||fim)return;ocupado=true;
+        try{const t=await dec();if(t&&!fim)parar(t)}catch(e){}
+        ocupado=false},180)
+    }).catch(()=>{const m=o.querySelector('#scan-msg');if(m)m.textContent='Não foi possível iniciar o leitor de código de barras neste aparelho.'})})}
+
+/* ---------- check-in de um bloco da ronda ---------- */
+/* lê o código e, logo em seguida, a antena Wi-Fi; devolve o registro (ok ou rejeitado) ou null se cancelado */
+async function checkin(bl){
+  const alvo=alvoDoBloco(bl);if(!alvo)return null;
+  const lido=await escanear('Leia o código de barras: '+alvo.nome);
+  if(lido==null)return null;
+  const bssid=await lerBssid(),r=validar({alvo,lido,bssid,pol:politica()});
+  return {ts:Date.now(),ok:r.ok,codigo:r.codigo,rede:r.rede,msg:r.msg,lido:String(lido).slice(0,80),bssid:bssid.valor||''}}
+
+/* guarda o resultado na ronda em andamento: R.chk[idDoBloco] = {ok: registro válido | null, falhas: últimas 5 rejeições} */
+function registrar(R,sid,reg){
+  const c=(R.chk=R.chk||{})[sid]=(R.chk[sid]||{ok:null,falhas:[]});
+  if(reg.ok)c.ok=reg;else c.falhas=[...c.falhas,reg].slice(-5);
+  return c}
+
+/* o registro guardado ainda vale? (reavalia com as regras e o cadastro atuais: pega rascunho adulterado ou cadastro alterado) */
+function revalida(alvo,reg){
+  return validar({alvo,lido:reg.lido,bssid:{ok:!!reg.bssid,valor:reg.bssid},pol:politica()}).ok}
+
+function estado(R,bl){
+  const pol=politica(),alvo=pol.modo!=='off'&&alvoDoBloco(bl);
+  if(!alvo)return {ativo:false,bloqueado:false};
+  if(!normCodigo(alvo.codigoLocal))return {ativo:true,semCodigo:true,alvo,falhas:[],ok:null,bloqueado:false};
+  const c=R.chk&&R.chk[bl.id],ok=c&&c.ok&&revalida(alvo,c.ok)?c.ok:null;
+  return {ativo:true,alvo,ok,falhas:c?c.falhas:[],bloqueado:pol.modo==='exigir'&&!ok}}
+const pendencias=R=>R.blocos.filter(bl=>estado(R,bl).bloqueado);
+
+/* evidência gravada em cada documento de `rondas` (null quando a validação está desligada) */
+function evidencia(R,bl){
+  const e=estado(R,bl),modo=politica().modo;
+  if(!e.ativo)return null;
+  if(e.semCodigo)return {modo,status:'sem_codigo'};
+  const f=(e.falhas||[]).map(x=>({ts:x.ts,codigo:x.codigo,lido:x.lido,bssid:x.bssid}));
+  if(e.ok)return {modo,status:'confirmada',ts:e.ok.ts,rede:e.ok.rede,lido:e.ok.lido,bssid:e.ok.bssid,...(f.length?{falhas:f}:{})};
+  return {modo,status:'nao_confirmada',...(f.length?{falhas:f}:{})}}
+
+/* selo para o histórico */
+function badge(p){
+  if(!p)return '';
+  const t=(c,x)=>`<span class="pill ${c}" title="Presença no local">${x}</span>`;
+  if(p.status==='confirmada'){
+    const n=(p.falhas||[]).length?` · ${p.falhas.length} leitura${p.falhas.length>1?'s':''} rejeitada${p.falhas.length>1?'s':''}`:'';
+    return p.rede==='confere'?t('okp','Presença: código + Wi-Fi'+n):t(p.rede==='indisponivel'?'late':'okp','Presença: código'+(p.rede==='indisponivel'?' (Wi-Fi não verificado)':'')+n)}
+  if(p.status==='sem_codigo')return t('off','Local sem código');
+  return t('late','Presença não confirmada')}
+
+/* ---------- cadastro ---------- */
+/* valida e normaliza codigoLocal/bssids de uma sala ou equipamento; devolve '' ou a mensagem de erro */
+function validaCadastro(data,ent,id){
+  const c=normCodigo(data.codigoLocal),tipo=ent==='salas'?'s':'e';
+  if(c){
+    if(c.length<4)return 'O código do local precisa ter ao menos 4 caracteres.';
+    const dup=alvos().find(a=>normCodigo(a.codigoLocal)===c&&!(a.id===id&&a.tipo===tipo));
+    if(dup)return `O código ${c} já está em uso por "${dup.nome}". Cada local precisa de um código único.`}
+  data.codigoLocal=c;
+  const p=parseBssids(data.bssids);
+  if(p.invalidos.length)return 'BSSID inválido: '+p.invalidos.join(', ')+'. Use aa:bb:cc:dd:ee:ff (ou aa:bb:cc:*:*:* para várias antenas do mesmo fabricante).';
+  data.bssids=p.lista.join('\n');
+  return ''}
+function gerarCodigo(prefixo){
+  const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',usados=new Set(alvos().map(a=>normCodigo(a.codigoLocal)));
+  let c;do{const b=crypto.getRandomValues(new Uint8Array(6));c=`RH-${prefixo}-`+[...b].map(x=>A[x%A.length]).join('')}while(usados.has(c));
+  return c}
+
+RH.local={normCodigo,normBssid,parseBssids,bssidConfere,politica,alvoDoBloco,validar,lerBssid,escanear,checkin,registrar,estado,pendencias,evidencia,badge,validaCadastro,gerarCodigo,
+  /* ganchos opcionais: RH.local.leitor = async titulo => texto ; RH.local.provedorBssid = async () => 'aa:bb:..' | {valor,motivo} */
+  leitor:null,provedorBssid:null};
+if(typeof module!=='undefined'&&module.exports)module.exports=RH.local;
+})();
+
+</script>
 
 <!-- Telas -->
 <script>
@@ -1232,7 +1489,7 @@ function startRonda(id){
   if(!RH.access.rondaVisivel(m,st.me)){toast('Você não tem acesso a esta ronda.','bad');return}
   const blocos=blocosDa(m);
   if(!blocos.length){toast('Esta ronda não tem salas nem equipamentos ativos. Ajuste em Cadastros → Rondas.','bad');return}
-  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens:itensDe(blocos),obs:'',started:Date.now()};
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens:itensDe(blocos),obs:'',started:Date.now(),chk:{}};
   saveDraft();
   RH.renderView(true);scrollTo(0,0);
 }
@@ -1253,7 +1510,7 @@ function gravar(k,R,nivel){
   Object.entries(R.itens).forEach(([ik,it])=>{
     if(!(it.r||it.desc||it.just||it.tipoId))return;
     const o={};CAMPOS.forEach(c=>{if(it[c]&&!(c==='full'&&nivel>=1)&&!(c==='thumb'&&nivel>=2))o[c]=it[c]});itens[ik]=o});
-  localStorage.setItem(k,JSON.stringify({v:1,uid:st.me.id,modeloId:R.modeloId,nome:R.nome,resp:R.resp,obs:R.obs||'',started:R.started,sub:R.sub||null,foco:R.foco||null,itens,savedAt:Date.now()}))}
+  localStorage.setItem(k,JSON.stringify({v:1,uid:st.me.id,modeloId:R.modeloId,nome:R.nome,resp:R.resp,obs:R.obs||'',started:R.started,sub:R.sub||null,foco:R.foco||null,chk:R.chk||{},itens,savedAt:Date.now()}))}
 let draftT;
 function saveDraft(){
   clearTimeout(draftT);
@@ -1274,6 +1531,7 @@ function restoreDraft(){
   Object.entries(d.itens||{}).forEach(([ik,v])=>{if(itens[ik])CAMPOS.forEach(c=>{if(v[c]!=null)itens[ik][c]=v[c]})});
   st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:d.obs||'',started:d.started||Date.now()};
   if(d.sub)st.R.sub=d.sub;
+  st.R.chk=d.chk||{};   /* check-ins de presença (código + antena) */
   const foco=d.foco&&itens[d.foco]?d.foco:null;
   if(foco){st.R.foco=foco;setTimeout(()=>document.getElementById('it-'+foco)?.scrollIntoView({block:'center'}),150)}
   /* celulares com pouca memória podem recarregar a página enquanto a câmera está aberta */
@@ -1299,24 +1557,41 @@ function itemHtml(k){
   ${ina?`<div class="ncp ina"><label class="field full"><span>Descrição (obrigatória) · por que o item está inacessível?</span><textarea data-ina="just" data-k="${k}" id="ina-${k}" required aria-required="true" placeholder="Explique o motivo (ex.: sala ocupada, equipamento em uso, acesso restrito)">${esc(it.just||'')}</textarea></label></div>`:''}</div>`;
 }
 
-function rondaForm(){
-  const R=st.R,blocos=R.blocos;
-  const hasItems=Object.keys(R.itens).length>0;
-  const nSalas=blocos.filter(b=>b.tipo==='sala').length,nEq=blocos.reduce((n,b)=>n+(b.eqIds?b.eqIds.length:0),0);
-  const bloco=bl=>{
-    const sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null;
-    const h=sala?`<div class="sala-h"><h2>${esc(sala.nome)}</h2><small>${esc(sala.setor||'')}${sala.andar?' · '+esc(sala.andar):''}</small></div>`
-      :`<div class="sala-h"><h2>Equipamentos</h2><small>${esc(bl.setor)}</small></div>`;
-    return h+alvos(bl).map(al=>{
+/* ---------- presença no local (código de barras + antena Wi-Fi) ---------- */
+const hora=t=>new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+const REDE={confere:'antena Wi-Fi conferida',indisponivel:'antena Wi-Fi não verificada',sem_cadastro:'local sem antena cadastrada',nao_exigida:''};
+function chkHtml(bl,e){
+  if(!e.ativo)return '';
+  if(e.semCodigo)return `<div class="chk-box semcod"><small>${ic('shield',14)} Este local não tem código de barras cadastrado: presença não verificada.${st.me.role==='admin'?' Cadastre em Cadastros.':''}</small></div>`;
+  if(e.ok)return `<div class="chk-box ok"><span class="pill okp"><i></i>Presença confirmada às ${hora(e.ok.ts)}</span><small>${esc(REDE[e.ok.rede]||'')}</small></div>`;
+  const f=e.falhas[e.falhas.length-1];
+  return `<div class="chk-box pend${e.bloqueado?' blk':''}"><div><b>${e.bloqueado?'Leia o código de barras do local para liberar o checklist.':'Presença no local ainda não confirmada (opcional).'}</b>${f?`<div class="err" role="alert">${esc(f.msg)}</div>`:''}</div>
+    <button type="button" class="btn pri sm" data-act="chkScan" data-id="${esc(bl.id)}">${ic('cam',16)} Ler código do local</button></div>`}
+
+function blocoHtml(bl){
+  const R=st.R,e=RH.local.estado(R,bl);
+  const sala=bl.tipo==='sala'?byId(S.salas,bl.salaId):null;
+  const h=sala?`<div class="sala-h"><h2>${esc(sala.nome)}</h2><small>${esc(sala.setor||'')}${sala.andar?' · '+esc(sala.andar):''}</small></div>`
+    :`<div class="sala-h"><h2>Equipamentos</h2><small>${esc(bl.setor)}</small></div>`;
+  return `<section class="bl" id="bl-${esc(bl.id)}">${h}${chkHtml(bl,e)}`+alvos(bl).map(al=>{
     const ks=Object.keys(R.itens).filter(k=>k.startsWith(prefix(bl.id,al)));
     const ico=al.eq?thumbEq(al.eq):`<div class="thumb">${ic('shield',22)}</div>`;
     if(!ks.length)return `<div class="grp noitems"><div class="gh">${ico}<div class="t"><b>${tagTipo(al.a)}${esc(al.n)}</b><small>Sem checklist vinculado${st.me.role==='admin'?' · vincule em Cadastros':''}</small></div></div></div>`;
     const cal=al.eq?.calibracao?RH.calBadge(al.eq.calibracao):'';
-    return `<div class="grp"><div class="gh">${ico}<div class="t"><b>${tagTipo(al.a)}${esc(al.n)}</b><small>${al.eq?`<span class="mono">${esc(al.eq.patrimonio||'sem patrimônio')}</span> · ${esc(al.eq.categoria||'')}`:esc(al.cl?.nome||'')}</small> ${cal}</div></div><div class="items">${ks.map(itemHtml).join('')}</div></div>`}).join('')};
-  return `<div class="top"><div><h1>${esc(R.nome)}</h1><p>${nSalas} sala${nSalas===1?'':'s'} · ${nEq} equipamento${nEq===1?'':'s'} · Início às ${new Date(R.started).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · Responsável: ${R.resp?esc(userName(R.resp)):'todos os inspetores'} · Inspetor: ${esc(st.me.nome)}</p></div>
+    return `<div class="grp"><div class="gh">${ico}<div class="t"><b>${tagTipo(al.a)}${esc(al.n)}</b><small>${al.eq?`<span class="mono">${esc(al.eq.patrimonio||'sem patrimônio')}</span> · ${esc(al.eq.categoria||'')}`:esc(al.cl?.nome||'')}</small> ${cal}</div></div><div class="items${e.bloqueado?' locked':''}"${e.bloqueado?' inert aria-disabled="true"':''}>${ks.map(itemHtml).join('')}</div></div>`}).join('')+'</section>'}
+
+function repaintBloco(id){
+  const bl=st.R&&st.R.blocos.find(b=>b.id===id),el=document.getElementById('bl-'+id);
+  if(bl&&el)el.outerHTML=blocoHtml(bl);progress()}
+
+function rondaForm(){
+  const R=st.R,blocos=R.blocos;
+  const hasItems=Object.keys(R.itens).length>0;
+  const nSalas=blocos.filter(b=>b.tipo==='sala').length,nEq=blocos.reduce((n,b)=>n+(b.eqIds?b.eqIds.length:0),0);
+  return `<div class="top"><div><h1>${esc(R.nome)}</h1><p>${nSalas} sala${nSalas===1?'':'s'} · ${nEq} equipamento${nEq===1?'':'s'} · Início às ${hora(R.started)} · Responsável: ${R.resp?esc(userName(R.resp)):'todos os inspetores'} · Inspetor: ${esc(st.me.nome)}</p></div>
   <button class="btn" data-act="cancelRonda">${ic('x',16)} Descartar ronda</button></div>
   <div class="rhead"><div class="prog"><b id="prog-t"></b><div class="bar"><i id="prog-b" style="width:0"></i></div></div><button class="btn pri" data-act="submitRonda" id="btn-sub">${ic('check',16)} Finalizar ronda</button></div>
-  ${hasItems?blocos.map(bloco).join(''):empty('Esta ronda não tem itens de checklist','Vincule checklists às salas e aos equipamentos em Cadastros.')}
+  ${hasItems?blocos.map(blocoHtml).join(''):empty('Esta ronda não tem itens de checklist','Vincule checklists às salas e aos equipamentos em Cadastros.')}
   <div class="card"><label class="field"><span>Observações gerais da ronda (opcional)</span><textarea id="r-obs" data-robs>${esc(R.obs)}</textarea></label></div>`;
 }
 RH.rondaForm=rondaForm;
@@ -1337,6 +1612,9 @@ async function submitRonda(){
   if(bad.length){bad.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+bad[0][0])?.scrollIntoView({block:'center'});toast('Informe o tipo e a descrição de cada não conformidade.','bad');return}
   const noJust=its.filter(([,i])=>i.r==='IN'&&!(i.just||'').trim());
   if(noJust.length){noJust.forEach(([k])=>document.getElementById('it-'+k)?.classList.add('miss'));document.getElementById('it-'+noJust[0][0])?.scrollIntoView({block:'center'});document.getElementById('ina-'+noJust[0][0])?.focus({preventScroll:true});toast('Descreva o motivo de cada item marcado como Inacessível.','bad');return}
+  /* presença no local: sem leitura válida do código (e da antena, se cadastrada) o bloco não pode ser finalizado */
+  const pend=RH.local.pendencias(R);
+  if(pend.length){document.getElementById('bl-'+pend[0].id)?.scrollIntoView({block:'start'});toast(`Confirme a presença lendo o código de barras em ${pend.length} local(is) antes de finalizar.`,'bad');return}
   const b=$('#btn-sub');b.disabled=true;
   /* ts, execId e ids ficam guardados na ronda: se o salvamento falhar no meio e o inspetor
      tentar de novo, os mesmos documentos são sobrescritos (nada fica duplicado) */
@@ -1350,7 +1628,8 @@ async function submitRonda(){
       if(!mine.length||(bl.tipo==='sala'&&!sala))continue;
       const salaNome=sala?sala.nome:'Equipamentos',setor=bl.setor==='Sem setor'?'':bl.setor,respSetor=sala?sala.responsavelId:(S.salas.find(x=>(x.setor||'Sem setor')===bl.setor&&x.responsavelId)||{}).responsavelId;
       const v=mine.map(x=>x[1]),c=v.filter(i=>i.r==='C').length,nc=v.filter(i=>i.r==='NC').length,ina=v.filter(i=>i.r==='IN').length,rid=mk('r:'+sid,'r');
-      await RH.put('rondas',rid,{ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,ina,
+      const presenca=RH.local.evidencia(R,bl);
+      await RH.put('rondas',rid,{...(presenca?{presenca}:{}),ts,execId,modeloId:R.modeloId,modeloNome:R.nome,salaId:sala?sala.id:null,salaNome,setor,inspId:st.me.id,inspNome:st.me.nome,c,nc,ina,
         pct:c+nc?Math.round(c/(c+nc)*1000)/10:100,obs:(R.obs||'').trim(),itens:v.map(i=>({a:i.a,i:i.i,n:i.n,t:i.t,r:i.r,...(i.r==='IN'?{just:i.just.trim()}:{})}))});
       for(const [k,i] of mine.filter(([,i])=>i.r==='NC')){
         const tipo=byId(S.tiposNC,i.tipoId),eq=i.a==='e'?byId(S.equipamentos,i.i):null;let fotoId=null;
@@ -1399,7 +1678,16 @@ Object.assign(RH.ACT,{
   pickRonda:el=>startRonda(el.dataset.id),
   resumeRonda:()=>RH.renderView(true),
   cancelRonda:()=>{if(RH.confirmArm(RH.ACT.cancelRonda,'Toque de novo para descartar a ronda')){RH.rondaDraft.clear();st.R=null;RH.renderView(true)}},
-  res:el=>{const it=st.R.itens[el.dataset.k];it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k);saveDraft();if(it.r==='IN')document.getElementById('ina-'+el.dataset.k)?.focus({preventScroll:true})},
+  chkScan:async el=>{
+    const bl=st.R&&st.R.blocos.find(b=>b.id===el.dataset.id);if(!bl||el.disabled)return;
+    el.disabled=true;
+    const reg=await RH.local.checkin(bl);
+    if(!st.R)return;                                   /* ronda descartada durante a leitura */
+    if(reg){RH.local.registrar(st.R,bl.id,reg);saveDraft();toast(reg.ok?'Presença confirmada.':reg.msg,reg.ok?'':'bad')}
+    repaintBloco(bl.id)},
+  res:el=>{const it=st.R.itens[el.dataset.k];
+    {const bl=st.R.blocos.find(b=>b.id===it.sid);if(bl&&RH.local.estado(st.R,bl).bloqueado){toast('Leia o código de barras do local antes de responder o checklist.','bad');return}}
+    it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k);saveDraft();if(it.r==='IN')document.getElementById('ina-'+el.dataset.k)?.focus({preventScroll:true})},
   camOpen:el=>camOpen(el.dataset.k),
   rmFoto:el=>{const it=st.R.itens[el.dataset.k];it.thumb=it.full=null;repaint(el.dataset.k);saveDraft()},
   submitRonda
@@ -1455,7 +1743,7 @@ function openRonda(id){
   const e=RH.execs(visiveis().filter(r=>(r.execId||r.id)===id))[0];if(!e)return;
   const porSala=e.docs.map(r=>{
     const g={};(r.itens||[]).forEach(i=>{(g[i.a+i.i]=g[i.a+i.i]||{n:i.n,l:[]}).l.push(i)});
-    return `<div><h4 style="font-size:15px;border-bottom:2px solid var(--brand);padding-bottom:4px">${esc(r.salaNome)} <small>${esc(r.setor||'')} · ${pc(r.pct)}</small></h4>
+    return `<div><h4 style="font-size:15px;border-bottom:2px solid var(--brand);padding-bottom:4px">${esc(r.salaNome)} <small>${esc(r.setor||'')} · ${pc(r.pct)}</small> ${RH.local.badge(r.presenca)}</h4>
     ${Object.values(g).map(x=>`<div style="margin-top:10px"><b>${esc(x.n)}</b><div style="margin-top:4px">${x.l.map(i=>`<div style="display:flex;gap:10px;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><span>${esc(i.t)}</span>${i.just?`<small style="display:block;color:var(--ink2)">Motivo: ${esc(i.just)}</small>`:''}</div><span style="flex:none" class="pill ${i.r==='C'?'okp':i.r==='NC'?'st-aberta':'off'}">${rotulo(i.r)}</span></div>`).join('')}</div></div>`).join('')}</div>`}).join('');
   const obs=e.docs.map(r=>r.obs).find(Boolean),nNC=ncsDa(e).length;
   modal(`<div class="mh"><div><h3 style="font-size:16px">${esc(e.nome)}</h3><small>${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</small></div><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
@@ -1590,6 +1878,9 @@ function acessoRonda(m){
   return `<span class="pill inf">Somente ${esc(u.nome)}</span>`;
 }
 
+/* coluna "Presença": código cadastrado? quantas antenas? */
+const presencaCol=x=>x.codigoLocal?`<span class="mono">${esc(x.codigoLocal)}</span><small>${RH.local.parseBssids(x.bssids).lista.length?RH.local.parseBssids(x.bssids).lista.length+' antena(s)':'sem antena cadastrada'}</small>`:'<span class="pill off">Sem código</span>';
+
 const TIPO_CK={sala:'Sala',equipamento:'Equipamento',ambos:'Sala e equipamento'};
 const ENT={
  modelos:{col:'modelos',nome:'Rondas',um:'ronda',
@@ -1602,17 +1893,21 @@ const ENT={
    {k:'agenda',l:'Dias e horários da ronda',t:'agenda',full:1},
    {k:'salaIds',l:'Setor (salas e equipamentos)',t:'salas',full:1}]},
  salas:{col:'salas',nome:'Salas',um:'sala',
-  cols:[['Sala',s=>`<b>${esc(s.nome)}</b><small>${esc(s.andar||'')}</small>`],['Setor',s=>esc(s.setor||'—')],['Responsável pela sala',s=>esc(userName(s.responsavelId))],['Equipamentos no setor',s=>S.equipamentos.filter(e=>s.setor&&RH.setorEq(e)===s.setor).length],['Rondas',s=>S.modelos.filter(m=>(m.salaIds||[]).includes(s.id)).length||'<span class="pill late">Fora de rondas</span>'],['Situação',actPill]],
+  cols:[['Sala',s=>`<b>${esc(s.nome)}</b><small>${esc(s.andar||'')}</small>`],['Setor',s=>esc(s.setor||'—')],['Presença',presencaCol],['Responsável pela sala',s=>esc(userName(s.responsavelId))],['Equipamentos no setor',s=>S.equipamentos.filter(e=>s.setor&&RH.setorEq(e)===s.setor).length],['Rondas',s=>S.modelos.filter(m=>(m.salaIds||[]).includes(s.id)).length||'<span class="pill late">Fora de rondas</span>'],['Situação',actPill]],
   fields:[{k:'nome',l:'Nome da sala / ambiente',req:1,full:1},{k:'setor',l:'Setor',req:1,list:optsSetor,hint:'Ex.: UTI, Centro Cirúrgico, Emergência'},{k:'andar',l:'Andar / bloco'},
    {k:'responsavelId',l:'Responsável pela sala (recebe as NCs)',t:'select',full:1,opts:()=>usersAtivos().map(u=>[u.id,u.nome+(u.cargo?' · '+u.cargo:'')]),blank:'Todos'},
+   {k:'codigoLocal',l:'Código de barras do local',t:'codigo',full:1,hint:'Valor do código (Code 128, QR etc.) impresso e fixado neste local. Deixe vazio para não verificar a presença aqui.'},
+   {k:'bssids',l:'Antenas Wi-Fi (BSSID) que cobrem este local',t:'bssids',full:1,hint:'Um por linha, ex.: aa:bb:cc:dd:ee:ff. Use aa:bb:cc:dd:*:* para antenas com vários rádios. Só é conferido no aplicativo Android.'},
    {k:'checklistId',l:'Checklist da sala',t:'select',full:1,opts:()=>S.checklists.filter(c=>['sala','ambos'].includes(c.tipo)).map(c=>[c.id,c.nome]),blank:'Nenhum'},
    {k:'ativo',l:'Sala ativa (aparece nas rondas)',t:'check',def:true,full:1}],
   canDel:s=>S.modelos.some(m=>(m.salaIds||[]).includes(s.id))?'Esta sala faz parte de uma ronda. Remova-a da ronda antes de excluir. Ou apenas desative a sala.':''},
  equipamentos:{col:'equipamentos',nome:'Equipamentos',um:'equipamento',
-  cols:[['Equipamento',e=>`<div style="display:flex;gap:10px;align-items:center">${RH.thumbEq(e)}<div><b>${esc(e.nome)}</b><small class="mono">${esc(e.patrimonio||'')}</small></div></div>`],['Categoria',e=>esc(e.categoria||'—')],['Setor',e=>esc(RH.setorEq(e)||'—')],['Calibração',e=>e.calibracao?RH.calBadge(e.calibracao):'—'],['Situação',actPill]],
+  cols:[['Equipamento',e=>`<div style="display:flex;gap:10px;align-items:center">${RH.thumbEq(e)}<div><b>${esc(e.nome)}</b><small class="mono">${esc(e.patrimonio||'')}</small></div></div>`],['Categoria',e=>esc(e.categoria||'—')],['Setor',e=>esc(RH.setorEq(e)||'—')],['Presença',presencaCol],['Calibração',e=>e.calibracao?RH.calBadge(e.calibracao):'—'],['Situação',actPill]],
   fields:[{k:'nome',l:'Nome do equipamento',req:1},{k:'patrimonio',l:'Nº de patrimônio / série'},{k:'categoria',l:'Categoria',list:()=>[...new Set(S.equipamentos.map(e=>e.categoria).filter(Boolean))],hint:'Ex.: Suporte à vida, Esterilização'},
    {k:'setor',l:'Setor',req:1,list:optsSetor,hint:'Setor onde o equipamento fica. Ex.: UTI, Centro Cirúrgico'},
    {k:'checklistId',l:'Checklist do equipamento',t:'select',opts:()=>S.checklists.filter(c=>['equipamento','ambos'].includes(c.tipo)).map(c=>[c.id,c.nome]),blank:'Nenhum'},
+   {k:'codigoLocal',l:'Código de barras do local',t:'codigo',full:1,hint:'Valor do código (Code 128, QR etc.) impresso e fixado neste local. Deixe vazio para não verificar a presença aqui.'},
+   {k:'bssids',l:'Antenas Wi-Fi (BSSID) que cobrem este local',t:'bssids',full:1,hint:'Um por linha, ex.: aa:bb:cc:dd:ee:ff. Use aa:bb:cc:dd:*:* para antenas com vários rádios. Só é conferido no aplicativo Android.'},
    {k:'calibracao',l:'Validade da calibração',t:'date'},{k:'foto',l:'Foto do equipamento',t:'photo',full:1},
    {k:'obs',l:'Observações',t:'textarea',full:1},{k:'ativo',l:'Equipamento ativo',t:'check',def:true,full:1}]},
  checklists:{col:'checklists',nome:'Checklists',um:'checklist',
@@ -1649,7 +1944,9 @@ RH.pages.cadastros=()=>{
   if(st.cadTab==='hospital'){
     const demo=['users','salas','equipamentos','checklists','tiposNC','modelos','rondas','ncs'].reduce((n,c)=>n+S[c].filter(x=>x.demo).length,0);
     body=`<form id="f-cfg" class="card" style="max-width:560px;display:grid;gap:14px"><h3>Dados do hospital</h3><label class="field"><span>Nome do hospital</span><input type="text" name="hospital" value="${esc(S.cfg.hospital||'')}" required></label>
-    <label class="field"><span>Meta de conformidade (%)</span><input type="number" name="meta" min="50" max="100" value="${+S.cfg.meta||95}"></label><div><button class="btn pri" type="submit">Salvar</button></div></form>
+    <label class="field"><span>Meta de conformidade (%)</span><input type="number" name="meta" min="50" max="100" value="${+S.cfg.meta||95}"></label>
+    ${(()=>{const p=RH.local.politica(),o=(v,l,c)=>`<option value="${v}" ${c===v?'selected':''}>${l}</option>`;return `<label class="field"><span>Presença no local (código de barras)</span><select name="valLocal">${o('off','Desligada',p.modo)}${o('registrar','Registrar leitura (não bloqueia)',p.modo)}${o('exigir','Exigir leitura para liberar o checklist',p.modo)}</select><small>Vale para salas e equipamentos que tenham código cadastrado.</small></label>
+    <label class="field"><span>Antena Wi-Fi (BSSID)</span><select name="valBssid">${o('se_disponivel','Conferir quando o aparelho conseguir ler',p.bssid)}${o('exigir','Exigir (rejeita aparelhos que não leem o BSSID)',p.bssid)}</select><small>Só o aplicativo Android lê o BSSID; navegador comum e iPhone não leem.</small></label>`})()}<div><button class="btn pri" type="submit">Salvar</button></div></form>
     <div class="card" style="max-width:560px;margin-top:14px"><h3>Dados de exemplo</h3><p style="margin:0 0 12px;color:var(--ink2)">${demo?`Há ${demo} registros de exemplo no sistema. Remova-os antes de começar a usar de verdade.`:'Carregue salas, equipamentos, checklists, rondas e 4 semanas de execuções fictícias para conhecer o painel.'}</p>
     <div class="prog-seed" id="seed-prog" hidden><i></i></div>
     ${demo?`<button class="btn bad" data-act="wipeDemo">Remover dados de exemplo</button>`:`<button class="btn" data-act="seedDemo">Carregar dados de exemplo</button>`}</div>${backupCard()}`;
@@ -1705,7 +2002,9 @@ function fieldHtml(f,v){
   if(f.t==='items')return `<div class="full"><span class="hint" style="font-weight:600;color:var(--ink2)">${esc(f.l)}</span><div id="items" style="margin-top:8px">${itemsHtml()}</div><button type="button" class="btn sm" data-act="itAdd">${ic('plus',14)} Adicionar item</button></div>`;
   if(f.t==='photo')return `<div class="full"><span class="hint" style="font-weight:600;color:var(--ink2)">${esc(f.l)}</span><div style="display:flex;gap:12px;align-items:center;margin-top:8px;flex-wrap:wrap"><div id="foto-prev">${fotoPrev()}</div><label class="btn sm" style="cursor:pointer">${ic('cam',16)} Escolher imagem<input class="sr" type="file" accept="image/*" id="ff-foto" data-ent-foto></label><button type="button" class="btn sm" data-act="rmEntFoto">Remover</button></div></div>`;
   let inp;
-  if(f.t==='select')inp=`<select name="${f.k}" id="${id}" ${f.req?'required':''}>${f.blank!==undefined?`<option value="">${f.blank}</option>`:''}${f.opts().map(([o,l])=>`<option value="${esc(o)}" ${String(v)===String(o)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  if(f.t==='codigo')inp=`<div style="display:flex;gap:8px"><input type="text" name="${f.k}" id="${id}" value="${esc(v??'')}" autocomplete="off" autocapitalize="characters" spellcheck="false" class="mono" style="flex:1"><button type="button" class="btn sm" data-act="genCodigo" style="min-height:38px">Gerar código</button></div>`;
+  else if(f.t==='bssids')inp=`<textarea name="${f.k}" id="${id}" rows="3" class="mono" spellcheck="false" autocapitalize="off">${esc(v||'')}</textarea><div><button type="button" class="btn sm" data-act="capBssid">${ic('check',14)} Ler a antena deste aparelho agora</button></div>`;
+  else if(f.t==='select')inp=`<select name="${f.k}" id="${id}" ${f.req?'required':''}>${f.blank!==undefined?`<option value="">${f.blank}</option>`:''}${f.opts().map(([o,l])=>`<option value="${esc(o)}" ${String(v)===String(o)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if(f.t==='textarea')inp=`<textarea name="${f.k}" id="${id}">${esc(v||'')}</textarea>${f.sugerir?`<div><button type="button" class="btn sm" data-act="genOrient">${ic('check',14)} Gerar sugestão a partir do nome</button></div>`:''}`;
   else if(f.t==='password')inp=`<div style="display:flex;gap:8px"><input type="text" class="pw" name="${f.k}" id="${id}" value="" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" style="flex:1"><button type="button" class="btn sm" data-act="genPw" style="min-height:38px">Gerar senha forte</button></div>`;
   else inp=`<input type="${f.t||'text'}" name="${f.k}" id="${id}" value="${esc(v??'')}" ${f.req?'required':''} ${f.list?`list="dl-${f.k}"`:''}>${f.list?`<datalist id="dl-${f.k}">${f.list().map(o=>`<option value="${esc(o)}">`).join('')}</datalist>`:''}`;
@@ -1717,6 +2016,7 @@ function preparaCopia(ent,d){
   d.nome=(d.nome||'')+' (cópia)';
   if(ent==='users'){d.login='';d.hash=null;d.salt=null}
   if(ent==='equipamentos')d.patrimonio='';
+  if(ent==='salas'||ent==='equipamentos')d.codigoLocal='';   /* o código identifica um único local */
   if(ent==='checklists')d.itens=(d.itens||[]).map(x=>({...x,id:'i'+uid()}));
   delete d.id;delete d.demo}
 function openEnt(ent,id,dupId){
@@ -1754,6 +2054,7 @@ async function saveEnt(form){
     if(f.k==='sev')v=+v;
     if(f.req&&(v===''||v==null))return err(`Preencha o campo: ${f.l}`);
     data[f.k]=v}
+  if(M.ent==='salas'||M.ent==='equipamentos'){const e=RH.local.validaCadastro(data,M.ent,M.id);if(e)return err(e)}
   if(M.ent==='users'){
     const login=data.login.toLowerCase();
     if(S.users.some(u=>u.id!==M.id&&(u.login||'').toLowerCase()===login))return err('Já existe um usuário com este login.');
@@ -1810,7 +2111,13 @@ Object.assign(RH.ACT,{
   seedDemo:async el=>{el.disabled=true;st.busy=true;await RH.seedDemo('#seed-prog');st.busy=false;toast('Dados de exemplo carregados.');RH.renderView(true)},
   wipeDemo:async el=>{el.disabled=true;st.busy=true;await RH.wipeDemo();st.busy=false;RH.renderView(true)},
   exportBackup:async el=>{el.disabled=true;try{const b=new Blob([await RH.store.exportJSON()],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ronda-hospitalar-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast('Backup exportado.')}catch(e){toast('Não foi possível exportar o backup.','bad')}el.disabled=false},
-  changeCode:()=>RH.store.changeCode()
+  changeCode:()=>RH.store.changeCode(),
+  genCodigo:()=>{$('#ff-codigoLocal').value=RH.local.gerarCodigo(st.cadTab==='salas'?'S':'E')},
+  capBssid:async el=>{
+    el.disabled=true;const r=await RH.local.lerBssid();el.disabled=false;
+    if(!r.ok){toast(r.msg,'bad');return}
+    const t=$('#ff-bssids'),l=RH.local.parseBssids(t.value).lista;
+    if(!l.includes(r.valor))l.push(r.valor);t.value=l.join('\n');toast('Antena '+r.valor+' adicionada.')},
 });
 RH.ON_CHANGE.push(async el=>{
   if(el.dataset.import!=null){if(el.files[0]){try{const n=await RH.store.importJSON(await el.files[0].text());toast(n+' registros importados.')}catch(err){toast(err.message||'Não foi possível importar o arquivo.','bad')}el.value=''}return true}
@@ -1826,7 +2133,7 @@ RH.ON_INPUT.push(el=>{
   return false});
 RH.ON_SUBMIT['f-ent']=saveEnt;
 RH.ON_SUBMIT['f-cfg']=async f=>{
-  const ok=await RH.safe(async()=>{await RH.put('config','main',{...S.cfg,hospital:f.hospital.value.trim(),meta:+f.meta.value||95});return true});
+  const ok=await RH.safe(async()=>{await RH.put('config','main',{...S.cfg,hospital:f.hospital.value.trim(),meta:+f.meta.value||95,valLocal:f.valLocal.value,valBssid:f.valBssid.value});return true});
   if(ok){toast('Dados salvos.');st.screen='';RH.renderRoot()}};
 })();
 

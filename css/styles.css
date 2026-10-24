@@ -378,3 +378,11 @@ input[type=text],input[type=password],input[type=number],input[type=date],input[
 /* item "Inacessível": campo de descrição obrigatório */
 .ncp.ina{background:var(--surface2,var(--line));border:1px dashed var(--line2)}
 .ncp.ina textarea:invalid{border-color:var(--bad)}
+
+/* ---------- presença no local (código de barras + antena) ---------- */
+.chk-box{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 14px;margin-bottom:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.chk-box.pend.blk{border-color:var(--warn);background:var(--warn-bg);color:var(--warn)}
+.chk-box.pend .err{margin-top:4px;min-height:0}
+.chk-box.semcod{color:var(--muted)}
+.chk-box small{color:var(--muted)}
+.grp>.items.locked{opacity:.4;filter:grayscale(.5);pointer-events:none;user-select:none}

@@ -1,0 +1,187 @@
+"""
+Teste ponta a ponta da validação de presença (código de barras + BSSID).
+Leitor e provedor de BSSID são simulados (RH.local.leitor / RH.local.provedorBssid); no final,
+o painel real da câmera é exercitado com câmera falsa do Chromium + BarcodeDetector simulado.
+Modo local (IndexedDB descartável): nunca toca o banco real.
+Uso: python3 tests/e2e_local.py
+"""
+import http.server, socketserver, threading, os, sys, functools
+from playwright.sync_api import sync_playwright
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PORT = 8766
+errors, results = [], []
+
+def check(name, cond, extra=""):
+    results.append((name, bool(cond)))
+    print(("  OK   " if cond else "  FAIL ") + name + (f"  -> {extra}" if (extra and not cond) else ""))
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *a): pass
+
+def serve():
+    socketserver.TCPServer.allow_reuse_address = True
+    srv = socketserver.TCPServer(("127.0.0.1", PORT), functools.partial(Quiet, directory=ROOT))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+def new_ctx(browser):
+    ctx = browser.new_context(viewport={"width": 1280, "height": 900}, permissions=["camera"])
+    ctx.route("**/js/config.js*", lambda r: r.fulfill(body="window.RONDA_CONFIG={supabaseUrl:'',supabaseKey:''};", content_type="application/javascript"))
+    ctx.route("**/*.supabase.co/**", lambda r: r.abort())
+    ctx.route("**/fonts.googleapis.com/**", lambda r: r.abort())
+    ctx.route("**/fonts.gstatic.com/**", lambda r: r.abort())
+    return ctx
+
+def toast(page): return page.inner_text("#toast")
+
+def scan(page, code, bssid):
+    """simula: o inspetor lê `code` estando conectado à antena `bssid`"""
+    page.evaluate("([c,b])=>{window.__c=c;window.__b=b}", [code, bssid])
+
+def click_scan(page, nome):
+    page.locator(f"section.bl:has(h2:has-text('{nome}')) [data-act=chkScan]").click()
+    page.wait_for_timeout(250)
+
+def main():
+    srv = serve()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"])
+        ctx = new_ctx(browser); page = ctx.new_page()
+        page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
+        page.on("console", lambda m: errors.append(f"console.error: {m.text}") if m.type == "error" else None)
+        page.goto(f"http://127.0.0.1:{PORT}/index.html")
+        page.wait_for_selector("#f-setup")
+        page.fill("#st-n", "Ana Admin"); page.fill("#st-l", "admin"); page.fill("#st-s", "Senha@123")
+        page.click("#st-btn"); page.wait_for_selector("#nav")
+
+        page.evaluate("RH.put('checklists','ck1',{nome:'Sala padrão',tipo:'sala',itens:[{id:'i1',t:'Limpeza adequada'}]})")
+        page.wait_for_timeout(300)
+
+        # ---------- cadastro de salas com código e BSSID ----------
+        print("\n== Cadastro ==")
+        def nova_sala(nome, codigo, bssids):
+            page.click("#nav [data-p=cadastros]"); page.click("[data-act=cadTab][data-k=salas]"); page.click("[data-act=newEnt]")
+            page.fill("#ff-nome", nome); page.fill("#ff-setor", "UTI")
+            page.select_option("#ff-checklistId", label="Sala padrão")
+            page.fill("#ff-codigoLocal", codigo); page.fill("#ff-bssids", bssids)
+            page.click("#f-ent button[type=submit]")
+        page.click("#nav [data-p=cadastros]"); page.click("[data-act=cadTab][data-k=salas]"); page.click("[data-act=newEnt]")
+        page.click("[data-act=genCodigo]")
+        check("Gerar código cria RH-S-XXXXXX", page.input_value("#ff-codigoLocal").startswith("RH-S-") and len(page.input_value("#ff-codigoLocal")) == 11)
+        page.click("[data-act=closeModal]")
+        nova_sala("UTI 01", "rh-s-uti01", "AA-BB-CC-DD-EE-01\naa:bb:cc:dd:ff:*")
+        page.wait_for_selector("#f-ent", state="detached")
+        nova_sala("UTI 02", "RH-S-UTI01", "")
+        check("Código duplicado é recusado", "já está em uso" in page.inner_text("#ent-err"))
+        page.fill("#ff-codigoLocal", "RH-S-UTI02"); page.fill("#ff-bssids", "zz:zz")
+        page.click("#f-ent button[type=submit]")
+        check("BSSID inválido é recusado", "BSSID inválido" in page.inner_text("#ent-err"))
+        page.fill("#ff-bssids", "aa:bb:cc:dd:ee:02"); page.click("#f-ent button[type=submit]")
+        page.wait_for_selector("#f-ent", state="detached")
+        salas = page.evaluate("RH.S.salas.map(s=>[s.nome,s.codigoLocal,s.bssids])")
+        check("Código e BSSID gravados normalizados", sorted(salas) == [["UTI 01", "RH-S-UTI01", "aa:bb:cc:dd:ee:01\naa:bb:cc:dd:ff:*"], ["UTI 02", "RH-S-UTI02", "aa:bb:cc:dd:ee:02"]], salas)
+        check("Tabela mostra o código e a contagem de antenas", "RH-S-UTI01" in page.inner_text("table") and "2 antena(s)" in page.inner_text("table"))
+
+        # botão "ler antena deste aparelho": sem provedor (navegador) -> mensagem clara
+        page.click("tr[data-act=editEnt]:has-text('UTI 01')"); page.click("[data-act=capBssid]"); page.wait_for_timeout(200)
+        check("Navegador comum: aviso de que não lê o BSSID", "não permite ler a antena" in toast(page), toast(page))
+        page.evaluate("RH.local.provedorBssid=async()=>'AA:BB:CC:DD:EE:77'")
+        page.click("[data-act=capBssid]"); page.wait_for_timeout(200)
+        check("Aplicativo: antena atual é adicionada ao cadastro", "aa:bb:cc:dd:ee:77" in page.input_value("#ff-bssids"))
+        page.click("[data-act=closeModal]")
+
+        sid = page.evaluate("Object.fromEntries(RH.S.salas.map(s=>[s.nome,s.id]))")
+        page.evaluate("""(ids)=>RH.put('modelos','m1',{nome:'Ronda UTI',ativo:true,responsavelId:'',dias:[0,1,2,3,4,5,6],horarios:['08:00'],
+            salaIds:[ids['UTI 01'],ids['UTI 02']],equipIds:[],ordem:['s:'+ids['UTI 01'],'s:'+ids['UTI 02']]})""", sid)
+        page.wait_for_timeout(300)
+
+        # ---------- política ----------
+        page.click("#nav [data-p=cadastros]"); page.click("[data-act=cadTab][data-k=hospital]")
+        page.select_option("select[name=valLocal]", value="exigir"); page.select_option("select[name=valBssid]", value="exigir")
+        page.click("#f-cfg button[type=submit]"); page.wait_for_timeout(500)
+        check("Política gravada em config", page.evaluate("[RH.S.cfg.valLocal,RH.S.cfg.valBssid]") == ["exigir", "exigir"])
+
+        # ---------- ronda ----------
+        print("\n== Ronda com presença exigida ==")
+        page.evaluate("RH.local.leitor=async()=>window.__c; RH.local.provedorBssid=async()=>window.__b")
+        page.click("#nav [data-p=ronda]"); page.click("[data-act=pickRonda]"); page.wait_for_selector(".rhead")
+        check("Checklists começam bloqueados", page.locator(".items.locked").count() == 2 and page.locator(".chk-box.blk").count() == 2)
+        page.evaluate("RH.ACT.res({dataset:{k:Object.keys(RH.st.R.itens)[0],r:'C'}})")
+        check("Responder sem presença é recusado", "antes de responder" in toast(page) and page.evaluate("Object.values(RH.st.R.itens).every(i=>!i.r)"))
+        page.click("#btn-sub")
+        check("Finalizar sem presença é bloqueado", "Faltam" in toast(page) or "Confirme a presença" in toast(page), toast(page))
+
+        scan(page, "999999", "aa:bb:cc:dd:ee:01"); click_scan(page, "UTI 01")
+        check("Código desconhecido rejeitado", "não corresponde" in page.inner_text("section.bl:has(h2:has-text('UTI 01'))") and page.locator(".items.locked").count() == 2)
+        scan(page, "RH-S-UTI02", "aa:bb:cc:dd:ee:01"); click_scan(page, "UTI 01")
+        check("Foto do código de outra sala: rejeitada, diz de qual sala é", 'pertence a "UTI 02"' in page.inner_text("section.bl:has(h2:has-text('UTI 01'))"))
+        scan(page, "RH-S-UTI01", "aa:bb:cc:dd:ee:02"); click_scan(page, "UTI 01")
+        check("Código certo + antena de outra sala: rejeitado", "antena Wi-Fi que não pertence" in page.inner_text("section.bl:has(h2:has-text('UTI 01'))"))
+        page.evaluate("RH.local.provedorBssid=async()=>({motivo:'navegador'})")
+        scan(page, "RH-S-UTI01", ""); click_scan(page, "UTI 01")
+        check("Sem leitura de BSSID (navegador) + política 'exigir': rejeitado", "não permite ler a antena" in page.inner_text("section.bl:has(h2:has-text('UTI 01'))"))
+        page.evaluate("RH.local.provedorBssid=async()=>window.__b")
+        scan(page, "rh-s-uti01", "AA:BB:CC:DD:FF:12"); click_scan(page, "UTI 01")
+        check("Leitura válida (curinga da antena) libera a sala", page.locator("section.bl:has(h2:has-text('UTI 01')) .chk-box.ok").count() == 1 and page.locator(".items.locked").count() == 1)
+
+        # rascunho mantém o check-in
+        page.reload(); page.wait_for_selector(".rhead")
+        check("Recarregar a página mantém a presença confirmada", page.locator("section.bl:has(h2:has-text('UTI 01')) .chk-box.ok").count() == 1)
+        page.evaluate("RH.local.leitor=async()=>window.__c; RH.local.provedorBssid=async()=>window.__b")
+
+        scan(page, "RH-S-UTI02", "aa:bb:cc:dd:ee:02"); click_scan(page, "UTI 02")
+        check("Segunda sala liberada", page.locator(".items.locked").count() == 0 and page.locator(".chk-box.ok").count() == 2)
+        for b in page.query_selector_all(".seg button.c"): b.click()
+        # adulteração do rascunho: BSSID trocado no estado
+        page.evaluate("RH.st.R.chk[RH.st.R.blocos[0].id].ok.bssid='11:22:33:44:55:66'")
+        page.click("#btn-sub")
+        check("Registro adulterado é revalidado e recusado ao finalizar", "Confirme a presença" in toast(page), toast(page))
+        page.evaluate("RH.st.R.chk[RH.st.R.blocos[0].id].ok.bssid='aa:bb:cc:dd:ff:12'")
+
+        page.click("#btn-sub"); page.wait_for_selector(".top h1:has-text('Histórico de rondas')")
+        docs = page.evaluate("RH.S.rondas.map(r=>[r.salaNome,r.presenca&&r.presenca.status,r.presenca&&r.presenca.rede,r.presenca&&r.presenca.bssid,(r.presenca&&r.presenca.falhas||[]).length])")
+        check("Evidência gravada em cada sala (status, rede, BSSID, tentativas rejeitadas)",
+              sorted(docs) == [["UTI 01", "confirmada", "confere", "aa:bb:cc:dd:ff:12", 4], ["UTI 02", "confirmada", "confere", "aa:bb:cc:dd:ee:02", 0]], docs)
+        page.click("tbody tr"); page.wait_for_selector(".mod")
+        check("Histórico mostra o selo de presença", "Presença: código + Wi-Fi" in page.inner_text(".mod") and "4 leituras rejeitadas" in page.inner_text(".mod"))
+        page.click("[data-act=closeModal]")
+
+        # ---------- modo registrar: não bloqueia ----------
+        print("\n== Modo 'registrar' ==")
+        t0 = page.evaluate("Date.now()")
+        page.evaluate("RH.put('config','main',{...RH.S.cfg,valLocal:'registrar'})"); page.wait_for_timeout(500)
+        page.click("#nav [data-p=ronda]"); page.click("[data-act=pickRonda]"); page.wait_for_selector(".rhead")
+        check("Registrar: checklist liberado sem leitura", page.locator(".items.locked").count() == 0 and page.locator(".chk-box.pend").count() == 2)
+        for b in page.query_selector_all(".seg button.c"): b.click()
+        page.click("#btn-sub"); page.wait_for_selector(".top h1:has-text('Histórico de rondas')")
+        st = page.evaluate("t=>RH.S.rondas.filter(r=>r.ts>t).map(r=>r.presenca.status)", t0)
+        check("Registrar: finaliza e marca 'nao_confirmada'", st == ["nao_confirmada", "nao_confirmada"], st)
+
+        # ---------- painel real da câmera (câmera falsa + BarcodeDetector simulado) ----------
+        print("\n== Painel da câmera ==")
+        page.evaluate("RH.put('config','main',{...RH.S.cfg,valLocal:'exigir',valBssid:'se_disponivel'})"); page.wait_for_timeout(500)
+        page.evaluate("""()=>{RH.local.leitor=null;RH.local.provedorBssid=async()=>'aa:bb:cc:dd:ee:01';
+          window.BarcodeDetector=class{static async getSupportedFormats(){return['code_128','qr_code']}constructor(o){this.o=o}async detect(v){window.__frames=(window.__frames||0)+1;return window.__frames>2?[{rawValue:'RH-S-UTI01'}]:[]}}}""")
+        page.click("#nav [data-p=ronda]"); page.click("[data-act=pickRonda]"); page.wait_for_selector(".rhead")
+        page.locator("section.bl:has(h2:has-text('UTI 01')) [data-act=chkScan]").click()
+        page.wait_for_selector("#scan-ov", timeout=3000)
+        check("Painel de leitura abre com a câmera", page.locator("#scan-v").count() == 1)
+        page.wait_for_selector("#scan-ov", state="detached", timeout=4000)
+        page.wait_for_timeout(300)
+        check("Leitura pela câmera confirma a presença e fecha o painel", page.locator("section.bl:has(h2:has-text('UTI 01')) .chk-box.ok").count() == 1)
+        check("Câmera é desligada ao terminar", page.evaluate("document.querySelectorAll('video').length") == 0)
+        page.locator("section.bl:has(h2:has-text('UTI 02')) [data-act=chkScan]").click()
+        page.wait_for_selector("#scan-ov"); page.click("#scan-x"); page.wait_for_timeout(200)
+        check("Cancelar fecha o painel sem registrar nada", page.locator("#scan-ov").count() == 0 and page.locator("section.bl:has(h2:has-text('UTI 02')) .items.locked").count() == 1)
+
+        browser.close()
+    srv.shutdown()
+    bad = [n for n, ok in results if not ok]
+    real_errors = [e for e in errors if "Failed to load resource" not in e]
+    print(f"\n{len(results)-len(bad)}/{len(results)} verificações OK; erros de console: {len(real_errors)}")
+    for e in real_errors[:10]: print("  ", e)
+    sys.exit(1 if bad or real_errors else 0)
+
+if __name__ == "__main__":
+    main()

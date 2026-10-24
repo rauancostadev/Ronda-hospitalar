@@ -71,6 +71,22 @@ t('estado/pendencias: exigir bloqueia até haver leitura válida; revalida regis
   S.cfg={valLocal:'registrar'};assert.strictEqual(L.pendencias(R).length,0);
   assert.strictEqual(L.evidencia(R,bl).status,'confirmada');
   assert.strictEqual(L.evidencia({blocos:[bl],chk:{}},bl).status,'nao_confirmada')});
+t('liberação em grupo: ler a chave libera os vinculados; chave sem código ou ausente não libera',()=>{
+  S.cfg={valLocal:'exigir'};
+  const b1={id:'s1',tipo:'sala',salaId:'s1'},b2={id:'s2',tipo:'sala',salaId:'s2'},be={id:'eq:e1',tipo:'eq',eqIds:['e1']};
+  const R={blocos:[b1,b2,be],chk:{},lib:{s2:'s1','eq:e1':'s1'}};
+  assert.deepStrictEqual(L.pendencias(R).map(b=>b.id),['s1','s2','eq:e1']);
+  assert.strictEqual(L.estado(R,b2).viaId,'s1');assert.strictEqual(L.dependentes(R,'s1').length,2);
+  /* ler o código do dependente na chave errada não vale: a presença é a da chave */
+  L.registrar(R,'s1',{ts:5,ok:true,codigo:'ok',rede:'confere',msg:'',lido:'RH-S-UTI01',bssid:'aa:bb:cc:dd:ee:01'});
+  assert.strictEqual(L.pendencias(R).length,0);
+  const ev=L.evidencia(R,b2);assert.deepStrictEqual([ev.status,ev.via],['confirmada','UTI 01']);
+  R.chk.s1.ok.bssid='aa:bb:cc:dd:ee:02';                       /* antena de outro local: chave invalida e todos voltam a bloquear */
+  assert.strictEqual(L.pendencias(R).length,3);
+  R.chk.s1.ok.bssid='aa:bb:cc:dd:ee:01';
+  assert.deepStrictEqual(L.pendencias({...R,blocos:[b2],lib:{s2:'s1'}}).map(b=>b.id),['s2']);   /* chave fora da ronda: exige o próprio código */
+  assert.deepStrictEqual(L.pendencias({blocos:[b1,{id:'s4',tipo:'sala',salaId:'s4'}],chk:{},lib:{s1:'s4'}}).map(b=>b.id),['s1']); /* chave sem código */
+  S.cfg={}});
 t('validaCadastro: normaliza, exige unicidade e BSSID válido',()=>{
   const d={codigoLocal:' rh-s-novo ',bssids:'AA-BB-CC-DD-EE-09'};
   assert.strictEqual(L.validaCadastro(d,'salas',undefined),'');

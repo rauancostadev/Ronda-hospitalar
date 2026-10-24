@@ -25,6 +25,9 @@ function alvos(bl){
   if(bl.tipo==='sala'){const s=byId(S.salas,bl.salaId);return s?[{a:'s',i:s.id,n:s.nome,cl:byId(S.checklists,s.checklistId)}]:[]}
   return bl.eqIds.map(id=>byId(S.equipamentos,id)).filter(Boolean).map(e=>({a:'e',i:e.id,n:e.nome,eq:e,cl:byId(S.checklists,e.checklistId)}))}
 const tagTipo=a=>a==='e'?'<span class="tag tag-e">Equipamento</span>':'<span class="tag tag-s">Sala</span>';
+/* liberação em grupo definida no cadastro da ronda: 's:ID'/'e:ID' → id do bloco */
+const blId=k=>k[0]==='s'?k.slice(2):'eq:'+k.slice(2);
+const libDe=m=>{const o={};Object.entries(m.liberacao||{}).forEach(([d,k])=>{o[blId(d)]=blId(k)});return o};
 const prefix=(sid,al)=>`${sid}:${al.a}:${al.i}:`;
 const thumbEq=e=>e.thumb?`<img class="thumb" src="${e.thumb}" alt="${esc(e.nome)}">`:`<div class="thumb">${ic('dev',22)}</div>`;
 RH.thumbEq=thumbEq;
@@ -59,7 +62,7 @@ function startRonda(id){
   if(!RH.access.rondaVisivel(m,st.me)){toast('Você não tem acesso a esta ronda.','bad');return}
   const blocos=blocosDa(m);
   if(!blocos.length){toast('Esta ronda não tem salas nem equipamentos ativos. Ajuste em Cadastros → Rondas.','bad');return}
-  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens:itensDe(blocos),obs:'',started:Date.now(),chk:{}};
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens:itensDe(blocos),obs:'',started:Date.now(),chk:{},lib:libDe(m)};
   saveDraft();
   RH.renderView(true);scrollTo(0,0);
 }
@@ -99,7 +102,7 @@ function restoreDraft(){
   const blocos=blocosDa(m),itens=itensDe(blocos);
   if(!blocos.length){clearDraft();return}
   Object.entries(d.itens||{}).forEach(([ik,v])=>{if(itens[ik])CAMPOS.forEach(c=>{if(v[c]!=null)itens[ik][c]=v[c]})});
-  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:d.obs||'',started:d.started||Date.now()};
+  st.R={modeloId:m.id,nome:m.nome,resp:m.responsavelId||'',blocos,itens,obs:d.obs||'',started:d.started||Date.now(),lib:libDe(m)};
   if(d.sub)st.R.sub=d.sub;
   st.R.chk=d.chk||{};   /* check-ins de presença (código + antena) */
   const foco=d.foco&&itens[d.foco]?d.foco:null;
@@ -133,10 +136,12 @@ const REDE={confere:'antena Wi-Fi conferida',indisponivel:'antena Wi-Fi não ver
 function chkHtml(bl,e){
   if(!e.ativo)return '';
   if(e.semCodigo)return '';   /* local sem código cadastrado: nada a mostrar (a ausência aparece no cadastro e no histórico) */
-  if(e.ok)return `<div class="chk-box ok"><span class="pill okp"><i></i>Presença confirmada às ${hora(e.ok.ts)}</span><small>${esc(REDE[e.ok.rede]||'')}</small></div>`;
+  if(e.ok)return `<div class="chk-box ok"><span class="pill okp"><i></i>Presença confirmada${e.dependente?' em '+esc(e.alvo.nome):''} às ${hora(e.ok.ts)}</span><small>${esc(REDE[e.ok.rede]||'')}</small></div>`;
   const f=e.falhas[e.falhas.length-1];
-  return `<div class="chk-box pend${e.bloqueado?' blk':''}"><div><b>${e.bloqueado?'Leia o código de barras do local para liberar o checklist.':'Presença no local ainda não confirmada (opcional).'}</b>${f?`<div class="err" role="alert">${esc(f.msg)}</div>`:''}</div>
-    <button type="button" class="btn pri sm" data-act="chkScan" data-id="${esc(bl.id)}">${ic('cam',16)} Ler código do local</button></div>`}
+  const nDep=RH.local.dependentes(st.R,bl.id).length,alvoId=e.viaId||bl.id;
+  const msg=e.dependente?`Leia o código de barras de ${esc(e.alvo.nome)} para liberar este local.`:nDep?`Leia o código de barras para liberar este local e mais ${nDep} do grupo.`:'Leia o código de barras do local para liberar o checklist.';
+  return `<div class="chk-box pend${e.bloqueado?' blk':''}"><div><b>${e.bloqueado?msg:'Presença no local ainda não confirmada (opcional).'}</b>${f?`<div class="err" role="alert">${esc(f.msg)}</div>`:''}</div>
+    <button type="button" class="btn pri sm" data-act="chkScan" data-id="${esc(alvoId)}">${ic('cam',16)} Ler código${e.dependente?' de '+esc(e.alvo.nome):' do local'}</button></div>`}
 
 function blocoHtml(bl){
   const R=st.R,e=RH.local.estado(R,bl);
@@ -254,7 +259,7 @@ Object.assign(RH.ACT,{
     const reg=await RH.local.checkin(bl);
     if(!st.R)return;                                   /* ronda descartada durante a leitura */
     if(reg){RH.local.registrar(st.R,bl.id,reg);saveDraft();toast(reg.ok?'Presença confirmada.':reg.msg,reg.ok?'':'bad')}
-    repaintBloco(bl.id)},
+    repaintBloco(bl.id);RH.local.dependentes(st.R,bl.id).forEach(b=>repaintBloco(b.id))},
   res:el=>{const it=st.R.itens[el.dataset.k];
     {const bl=st.R.blocos.find(b=>b.id===it.sid);if(bl&&RH.local.estado(st.R,bl).bloqueado){toast('Leia o código de barras do local antes de responder o checklist.','bad');return}}
     it.r=it.r===el.dataset.r?'':el.dataset.r;if(it.r==='NC'&&!it.sev)it.sev=2;repaint(el.dataset.k);saveDraft();if(it.r==='IN')document.getElementById('ina-'+el.dataset.k)?.focus({preventScroll:true})},

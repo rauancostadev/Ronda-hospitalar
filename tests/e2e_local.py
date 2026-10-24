@@ -181,8 +181,33 @@ def main():
         check("Sem lista 'Sem ocorrências' e sem nome de sala repetido", "Sem ocorrências" not in txt and txt.count("UTI 01") == 1, txt)
         page.click("[data-act=closeModal]")
 
+        # ---------- liberação em grupo ----------
+        print("\n== Liberação em grupo ==")
+        page.evaluate("RH.put('config','main',{...RH.S.cfg,valLocal:'exigir',valBssid:'exigir'})"); page.wait_for_timeout(400)
+        page.click("#nav [data-p=cadastros]"); page.click("[data-act=cadTab][data-k=modelos]")
+        page.click("tr[data-act=editEnt]:has-text('Ronda UTI')")
+        check("Cadastro da ronda oferece 'Liberar com' em cada local", page.locator("select[data-lib]").count() == 2)
+        page.locator("select[data-lib]").nth(1).select_option(label="UTI 01")
+        check("Chave mostra quantos locais libera", "Libera 1" in page.inner_text("#ord-list"))
+        page.click("#f-ent button[type=submit]"); page.wait_for_selector("#f-ent", state="detached")
+        check("Vínculo gravado na ronda", page.evaluate("Object.keys(RH.S.modelos.find(m=>m.id==='m1').liberacao||{}).length") == 1)
+        page.click("#nav [data-p=ronda]"); page.click("[data-act=pickRonda]"); page.wait_for_selector(".rhead")
+        check("Ambas começam bloqueadas", page.locator(".items.locked").count() == 2)
+        check("UTI 02 pede o código da UTI 01", "código de barras de UTI 01" in page.inner_text("section.bl:has(h2:has-text('UTI 02'))"))
+        scan(page, "RH-S-UTI02", "aa:bb:cc:dd:ee:02")
+        page.locator("section.bl:has(h2:has-text('UTI 02')) [data-act=chkScan]").click(); page.wait_for_timeout(250)
+        check("Código do próprio dependente não libera (só o da chave)", page.locator(".items.locked").count() == 2)
+        scan(page, "RH-S-UTI01", "aa:bb:cc:dd:ee:01")
+        page.locator("section.bl:has(h2:has-text('UTI 02')) [data-act=chkScan]").click(); page.wait_for_timeout(250)
+        check("Ler a chave (código + antena dela) libera todas", page.locator(".items.locked").count() == 0 and page.locator(".chk-box.ok").count() == 2)
+        for b in page.query_selector_all(".seg button.c"): b.click()
+        page.click("#btn-sub"); page.wait_for_selector(".top h1:has-text('Histórico de rondas')")
+        ev = page.evaluate("RH.S.rondas.filter(r=>r.salaNome==='UTI 02').sort((a,b)=>b.ts-a.ts)[0].presenca")
+        check("Evidência da dependente aponta a chave", ev["status"] == "confirmada" and ev.get("via") == "UTI 01" and ev["bssid"] == "aa:bb:cc:dd:ee:01", ev)
+
         # ---------- painel real da câmera (câmera falsa + BarcodeDetector simulado) ----------
         print("\n== Painel da câmera ==")
+        page.evaluate("RH.upd('modelos','m1',{liberacao:{}})"); page.wait_for_timeout(300)   # volta a exigir o código de cada local
         page.evaluate("RH.put('config','main',{...RH.S.cfg,valLocal:'exigir',valBssid:'se_disponivel'})"); page.wait_for_timeout(500)
         page.evaluate("""()=>{RH.local.leitor=null;RH.local.provedorBssid=async()=>'aa:bb:cc:dd:ee:01';
           window.BarcodeDetector=class{static async getSupportedFormats(){return['code_128','qr_code']}constructor(o){this.o=o}async detect(v){window.__frames=(window.__frames||0)+1;return window.__frames>2?[{rawValue:'RH-S-UTI01'}]:[]}}}""")

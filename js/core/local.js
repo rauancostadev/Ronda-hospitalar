@@ -194,13 +194,24 @@ function registrar(R,sid,reg){
 function revalida(alvo,reg){
   return validar({alvo,lido:reg.lido,bssid:{ok:!!reg.bssid,valor:reg.bssid},pol:politica()}).ok}
 
-function estado(R,bl){
+/* estado de um bloco com código próprio */
+function estadoProprio(R,bl){
   const pol=politica(),alvo=pol.modo!=='off'&&alvoDoBloco(bl);
   if(!alvo)return {ativo:false,bloqueado:false};
   if(!normCodigo(alvo.codigoLocal))return {ativo:true,semCodigo:true,alvo,falhas:[],ok:null,bloqueado:false};
   const c=R.chk&&R.chk[bl.id],ok=c&&c.ok&&revalida(alvo,c.ok)?c.ok:null;
   return {ativo:true,alvo,ok,falhas:c?c.falhas:[],bloqueado:pol.modo==='exigir'&&!ok}}
+/* Liberação em grupo: R.lib[idDoBloco] = idDoBlocoChave. O bloco dependente é liberado quando a chave tem presença
+   confirmada (código + antena DA CHAVE); o código do próprio bloco não é exigido. Chave sem código ou ausente da ronda → o bloco volta a exigir o próprio. */
+function estado(R,bl){
+  const kid=R.lib&&R.lib[bl.id],kb=kid&&kid!==bl.id&&!(R.lib[kid])&&R.blocos.find(b=>b.id===kid);
+  if(kb){
+    const k=estadoProprio(R,kb);
+    if(k.ativo&&!k.semCodigo)return {...k,dependente:true,viaId:kb.id}}
+  return estadoProprio(R,bl)}
 const pendencias=R=>R.blocos.filter(bl=>estado(R,bl).bloqueado);
+/* blocos liberados pela leitura da chave `id` */
+const dependentes=(R,id)=>R.blocos.filter(b=>b.id!==id&&R.lib&&R.lib[b.id]===id&&estado(R,b).dependente);
 
 /* evidência gravada em cada documento de `rondas` (null quando a validação está desligada) */
 function evidencia(R,bl){
@@ -208,7 +219,7 @@ function evidencia(R,bl){
   if(!e.ativo)return null;
   if(e.semCodigo)return {modo,status:'sem_codigo'};
   const f=(e.falhas||[]).map(x=>({ts:x.ts,codigo:x.codigo,lido:x.lido,bssid:x.bssid}));
-  if(e.ok)return {modo,status:'confirmada',ts:e.ok.ts,rede:e.ok.rede,lido:e.ok.lido,bssid:e.ok.bssid,...(f.length?{falhas:f}:{})};
+  if(e.ok)return {modo,status:'confirmada',ts:e.ok.ts,rede:e.ok.rede,lido:e.ok.lido,bssid:e.ok.bssid,...(e.dependente?{via:e.alvo.nome}:{}),...(f.length?{falhas:f}:{})};
   return {modo,status:'nao_confirmada',...(f.length?{falhas:f}:{})}}
 
 /* selo para o histórico */
@@ -239,7 +250,7 @@ function gerarCodigo(prefixo){
   let c;do{const b=crypto.getRandomValues(new Uint8Array(6));c=`RH-${prefixo}-`+[...b].map(x=>A[x%A.length]).join('')}while(usados.has(c));
   return c}
 
-RH.local={normCodigo,normBssid,parseBssids,bssidConfere,politica,alvoDoBloco,validar,lerBssid,escanear,checkin,registrar,estado,pendencias,evidencia,badge,validaCadastro,gerarCodigo,
+RH.local={normCodigo,normBssid,parseBssids,bssidConfere,politica,alvoDoBloco,validar,lerBssid,escanear,checkin,registrar,estado,pendencias,dependentes,evidencia,badge,validaCadastro,gerarCodigo,
   /* ganchos opcionais: RH.local.leitor = async titulo => texto ; RH.local.provedorBssid = async () => 'aa:bb:..' | {valor,motivo} */
   leitor:null,provedorBssid:null};
 if(typeof module!=='undefined'&&module.exports)module.exports=RH.local;

@@ -107,10 +107,17 @@ const itemsHtml=()=>st.M.items.map((it,i)=>`<div class="irow"><input type="text"
 
 /* Setor (salas e equipamentos): sequência de percurso numerada (1°, 2°, ...) */
 const ordNome=k=>{const id=k.slice(2),x=k[0]==='s'?byId(S.salas,id):byId(S.equipamentos,id);return x};
+/* "Liberar com": uma sala/equipamento da ronda funciona como chave; ao ler o código dele (e conferir a antena dele) os vinculados são liberados */
+function libSel(k){
+  const lib=st.M.liberacao,o=st.M.ordem,nDep=Object.values(lib).filter(v=>v===k).length;
+  if(o.length<2)return '';
+  if(nDep)return `<small class="mono" title="Os locais vinculados são liberados ao ler o código deste">Libera ${nDep}</small>`;
+  const opts=o.filter(x=>x!==k&&!lib[x]&&ordNome(x)).map(x=>`<option value="${esc(x)}" ${lib[k]===x?'selected':''}>${esc(ordNome(x).nome)}</option>`).join('');
+  return `<select data-lib="${esc(k)}" aria-label="Liberar com" style="max-width:190px"><option value="">Código próprio</option>${opts}</select>`}
 function ordemHtml(){
   const o=st.M.ordem;
   return o.map((k,i)=>{const x=ordNome(k);if(!x)return '';const sala=k[0]==='s',inat=x.ativo===false?' <small>(inativ'+(sala?'a':'o')+')</small>':'';
-    return `<div class="irow ord-row"><span class="ord-n" aria-label="Posição ${i+1}">${i+1}°</span><span class="ord-t"><span class="tag ${sala?'tag-s':'tag-e'}">${sala?'Sala':'Equipamento'}</span> ${esc(x.nome)}${inat} <small>${esc((sala?x.setor:RH.setorEq(x))||'Sem setor')}</small></span><button type="button" class="ic-btn" data-act="ordUp" data-i="${i}" aria-label="Subir">${ic('up',14)}</button><button type="button" class="ic-btn" data-act="ordDn" data-i="${i}" aria-label="Descer">${ic('dn',14)}</button><button type="button" class="ic-btn" data-act="ordDel" data-i="${i}" aria-label="Remover">${ic('trash',14)}</button></div>`}).join('')||'<div class="hint" style="margin-bottom:8px">Nenhuma sala ou equipamento. Adicione na ordem em que a inspeção deve ser feita.</div>'}
+    return `<div class="irow ord-row"><span class="ord-n" aria-label="Posição ${i+1}">${i+1}°</span><span class="ord-t"><span class="tag ${sala?'tag-s':'tag-e'}">${sala?'Sala':'Equipamento'}</span> ${esc(x.nome)}${inat} <small>${esc((sala?x.setor:RH.setorEq(x))||'Sem setor')}</small></span>${libSel(k)}<button type="button" class="ic-btn" data-act="ordUp" data-i="${i}" aria-label="Subir">${ic('up',14)}</button><button type="button" class="ic-btn" data-act="ordDn" data-i="${i}" aria-label="Descer">${ic('dn',14)}</button><button type="button" class="ic-btn" data-act="ordDel" data-i="${i}" aria-label="Remover">${ic('trash',14)}</button></div>`}).join('')||'<div class="hint" style="margin-bottom:8px">Nenhuma sala ou equipamento. Adicione na ordem em que a inspeção deve ser feita.</div>'}
 /* salas e equipamentos já vinculados a outra ronda não podem ser escolhidos novamente */
 const usadosEmOutras=()=>new Set(S.modelos.filter(m=>m.id!==st.M.id).flatMap(m=>RH.ordemDaRonda(m)));
 function ordemOpts(){
@@ -123,7 +130,8 @@ const ordemRefresh=()=>{$('#ord-list').innerHTML=ordemHtml();$('#ord-add').inner
 function salasPicker(f){
   return `<div class="full"><span class="hint" style="font-weight:600;color:var(--ink2)">${esc(f.l)} *</span><div id="ord-list" style="margin-top:6px">${ordemHtml()}</div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><select id="ord-add" aria-label="Adicionar sala ou equipamento" style="flex:1;min-width:200px">${ordemOpts()}</select><button type="button" class="btn sm" data-act="ordAdd">${ic('plus',14)} Adicionar</button></div>
-  <small>Itens já vinculados a outra ronda não aparecem na lista. Salas e equipamentos são inspecionados na ordem numerada (1° é o primeiro), com os checklists vinculados a cada um.</small></div>`}
+  <small>Itens já vinculados a outra ronda não aparecem na lista. Salas e equipamentos são inspecionados na ordem numerada (1° é o primeiro), com os checklists vinculados a cada um.</small>
+  <small style="display:block;margin-top:4px"><b>Liberar com:</b> para bloquear vários locais e liberá-los todos de uma vez, escolha em cada um a sala/equipamento-chave. Ao ler o código da chave (na antena Wi-Fi dela) todos os vinculados são liberados.</small></div>`}
 
 /* dias da semana + horários em que a ronda deve ser realizada */
 const horasHtml=()=>st.M.horarios.map((h,i)=>`<div class="irow"><input type="time" data-hx="${i}" value="${esc(h)}" required aria-label="Horário ${i+1}"><button type="button" class="ic-btn" data-act="agDelH" data-i="${i}" aria-label="Remover horário">${ic('trash',14)}</button></div>`).join('')||'<div class="hint" style="margin-bottom:8px">Nenhum horário. Adicione ao menos um.</div>';
@@ -165,7 +173,7 @@ function openEnt(ent,id,dupId){
   const E=ENT[ent],d=id||dupId?{...byId(S[E.col],id||dupId)}:{};
   if(dupId)preparaCopia(ent,d);
   if(ent==='equipamentos'&&!d.setor)d.setor=RH.setorEq(d);
-  st.M={ent,id,ordem:ent==='modelos'?(dupId?[]:RH.ordemDaRonda(d)):null,items:(d.itens||[]).map(x=>({...x})),foto:{thumb:d.thumb||null,fotoId:d.fotoId||null,full:null,remove:false},armed:false};
+  st.M={ent,id,ordem:ent==='modelos'?(dupId?[]:RH.ordemDaRonda(d)):null,liberacao:ent==='modelos'&&!dupId?{...(d.liberacao||{})}:{},items:(d.itens||[]).map(x=>({...x})),foto:{thumb:d.thumb||null,fotoId:d.fotoId||null,full:null,remove:false},armed:false};
   if(ent==='checklists'&&!id&&!st.M.items.length)st.M.items=[{id:'i'+uid(),t:''}];
   /* agenda da ronda (padrão: segunda a sexta às 08:00; ronda antiga sem agenda: todos os dias) */
   st.M.dias=RH.agenda.temAgenda(d)?[...d.dias]:(id?[0,1,2,3,4,5,6]:[1,2,3,4,5]);
@@ -188,7 +196,12 @@ async function saveEnt(form){
       if(!hs.length)return err('Informe ao menos um horário para a ronda.');
       data.dias=dias;data.horarios=hs;continue}
     if(f.t==='salas'){data.ordem=M.ordem.filter(k=>ordNome(k));data[f.k]=data.ordem.filter(k=>k[0]==='s').map(k=>k.slice(2));data.equipIds=data.ordem.filter(k=>k[0]==='e').map(k=>k.slice(2));{const uso=usadosEmOutras(),rep=data.ordem.find(k=>uso.has(k));if(rep)return err((rep[0]==='s'?'A sala ':'O equipamento ')+ordNome(rep).nome+' já está vinculad'+(rep[0]==='s'?'a':'o')+' a outra ronda.')}
-    if(!data.ordem.length)return err('Marque ao menos uma sala ou um equipamento para a ronda.');continue}
+    if(!data.ordem.length)return err('Marque ao menos uma sala ou um equipamento para a ronda.');
+    {const lib={};Object.entries(M.liberacao).forEach(([d,k])=>{if(d!==k&&data.ordem.includes(d)&&data.ordem.includes(k)&&!M.liberacao[k])lib[d]=k});
+     const sem=[...new Set(Object.values(lib))].map(ordNome).find(x=>x&&!x.codigoLocal);
+     if(sem)return err(`Para liberar vários locais com "${sem.nome}", cadastre um código de barras nele (Cadastros → Salas/Equipamentos).`);
+     data.liberacao=lib}
+    continue}
     if(f.t==='check'){data[f.k]=form.elements[f.k].checked;continue}
     if(f.t==='password')continue;
     let v=(form.elements[f.k].value||'').trim();
@@ -243,7 +256,7 @@ Object.assign(RH.ACT,{
   itAdd:()=>{st.M.items.push({id:'i'+uid(),t:''});$('#items').innerHTML=itemsHtml();const i=document.querySelectorAll('[data-itx]');i[i.length-1]?.focus()},
   itDel:el=>{st.M.items.splice(+el.dataset.i,1);$('#items').innerHTML=itemsHtml()},
   ordAdd:()=>{const v=$('#ord-add').value;if(v){st.M.ordem.push(v);ordemRefresh()}},
-  ordDel:el=>{st.M.ordem.splice(+el.dataset.i,1);ordemRefresh()},
+  ordDel:el=>{const [k]=st.M.ordem.splice(+el.dataset.i,1),lib=st.M.liberacao;delete lib[k];Object.keys(lib).forEach(d=>{if(lib[d]===k)delete lib[d]});ordemRefresh()},
   ordUp:el=>{const i=+el.dataset.i,o=st.M.ordem;if(i>0){[o[i-1],o[i]]=[o[i],o[i-1]];ordemRefresh()}},
   ordDn:el=>{const i=+el.dataset.i,o=st.M.ordem;if(i<o.length-1){[o[i+1],o[i]]=[o[i],o[i+1]];ordemRefresh()}},
   itUp:el=>{const i=+el.dataset.i,M=st.M;if(i>0){[M.items[i-1],M.items[i]]=[M.items[i],M.items[i-1]];$('#items').innerHTML=itemsHtml()}},
@@ -262,6 +275,7 @@ Object.assign(RH.ACT,{
     if(!l.includes(r.valor))l.push(r.valor);t.value=l.join('\n');toast('Antena '+r.valor+' adicionada.')},
 });
 RH.ON_CHANGE.push(async el=>{
+  if(el.dataset.lib!=null){if(el.value)st.M.liberacao[el.dataset.lib]=el.value;else delete st.M.liberacao[el.dataset.lib];ordemRefresh();return true}
   if(el.dataset.import!=null){if(el.files[0]){try{const n=await RH.store.importJSON(await el.files[0].text());toast(n+' registros importados.')}catch(err){toast(err.message||'Não foi possível importar o arquivo.','bad')}el.value=''}return true}
   if(el.dataset.entFoto!=null){if(el.files[0]){try{Object.assign(st.M.foto,await RH.processImg(el.files[0]),{remove:false});$('#foto-prev').innerHTML=fotoPrev()}catch(err){toast('Não foi possível ler a imagem.','bad')}}return true}
   return false});

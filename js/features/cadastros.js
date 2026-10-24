@@ -94,7 +94,7 @@ RH.pages.cadastros=()=>{
     ${demo?`<button class="btn bad" data-act="wipeDemo">Remover dados de exemplo</button>`:`<button class="btn" data-act="seedDemo">Carregar dados de exemplo</button>`}</div>${backupCard()}`;
   }else{
     const E=ENT[st.cadTab],rows=[...S[E.col]].sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
-    body=`<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><small>${rows.length} cadastrado${rows.length===1?'':'s'} · clique em uma linha para editar ou use Duplicar</small><button class="btn pri" data-act="newEnt">${ic('plus',16)} Adicionar ${E.um}</button></div>
+    body=`<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><small>${rows.length} cadastrado${rows.length===1?'':'s'} · clique em uma linha para editar ou use Duplicar</small><span style="display:flex;gap:8px;flex-wrap:wrap">${['salas','equipamentos'].includes(st.cadTab)?`<button class="btn" data-act="etqOpen">${ic('copy',16)} Imprimir etiquetas</button>`:''}<button class="btn pri" data-act="newEnt">${ic('plus',16)} Adicionar ${E.um}</button></span></div>
     ${rows.length?`<div class="tw"><table><thead><tr>${E.cols.map(c=>`<th>${c[0]}</th>`).join('')}<th class="th-act"><span class="sr">Ações</span></th></tr></thead><tbody>${rows.map(r=>`<tr data-act="editEnt" data-id="${r.id}">${E.cols.map(c=>`<td>${c[1](r)}</td>`).join('')}<td class="td-act"><button type="button" class="btn sm" data-act="dupEnt" data-id="${r.id}" title="Duplicar este cadastro" aria-label="Duplicar ${esc(r.nome||'')}">${ic('copy',14)} Duplicar</button></td></tr>`).join('')}</tbody></table></div>`:empty(`Nenhum cadastro em ${E.nome}`,'Use o botão Adicionar para criar o primeiro.')}`;
   }
   return `<div class="top"><div><h1>Cadastros</h1><p>Rondas, salas, equipamentos, checklists, tipos de não conformidade e usuários.</p></div></div>
@@ -243,8 +243,34 @@ async function deleteEnt(){
   if(await RH.safe(async()=>{await RH.del(E.col,M.id);return true})){closeModal();toast('Cadastro excluído.')}
 }
 
+/* ---------- etiquetas com QR Code / código de barras ---------- */
+const comCodigo=()=>S[st.cadTab].filter(x=>x.ativo!==false&&x.codigoLocal).sort((a,b)=>((a.setor||RH.setorEq(a)||'')+a.nome).localeCompare((b.setor||RH.setorEq(b)||'')+b.nome));
+const semCodigo=()=>S[st.cadTab].filter(x=>x.ativo!==false&&!x.codigoLocal);
+function etqGrid(){
+  const fmt=st.etqFmt||'qr',rows=comCodigo();
+  if(!rows.length)return '<div class="empty"><b>Nenhum local com código</b>Use "Gerar códigos faltantes" ou cadastre o código em cada local.</div>';
+  return rows.map(x=>{
+    let img;try{img=fmt==='qr'?RH.barcode.qrSvg(x.codigoLocal):RH.barcode.code128Svg(x.codigoLocal)}catch(e){img=`<small class="err">${esc(e.message)}</small>`}
+    return `<div class="etq ${fmt}"><div class="etq-img">${img}</div><div class="etq-t"><b>${esc(x.nome)}</b><span>${esc((st.cadTab==='salas'?x.setor:RH.setorEq(x))||'')}${x.andar?' · '+esc(x.andar):''}</span><code>${esc(x.codigoLocal)}</code><small>Ronda Hospitalar · leia ao chegar neste local</small></div></div>`}).join('')}
+function etqBar(){
+  const fmt=st.etqFmt||'qr',n=semCodigo().length;
+  return `<span>Formato:</span><button type="button" class="btn sm" data-act="etqFmt" data-v="qr" aria-pressed="${fmt==='qr'}">QR Code (recomendado)</button><button type="button" class="btn sm" data-act="etqFmt" data-v="c128" aria-pressed="${fmt==='c128'}">Código de barras</button>
+  ${n?`<span class="pill late">${n} sem código</span><button type="button" class="btn sm" data-act="etqGen">Gerar códigos faltantes</button>`:''}`}
+function etqOpen(){
+  const E=ENT[st.cadTab];
+  modal(`<div class="mh"><h3 style="font-size:16px">Etiquetas · ${E.nome}</h3><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
+  <div class="mb"><div class="no-print etq-bar" id="etq-bar">${etqBar()}</div><small class="no-print">Imprima em tamanho real (100%), preto sobre branco, e recorte nas linhas. Teste a leitura com o app antes de colar.</small><div class="etq-grid" id="etq-grid">${etqGrid()}</div></div>
+  <div class="mf"><button type="button" class="btn" data-act="closeModal">Fechar</button><button type="button" class="btn pri" data-act="etqPrint">${ic('check',16)} Imprimir</button></div>`,true)}
+
 /* ---------- eventos ---------- */
 Object.assign(RH.ACT,{
+  etqOpen,
+  etqFmt:el=>{st.etqFmt=el.dataset.v;$('#etq-grid').innerHTML=etqGrid();$('#etq-bar').innerHTML=etqBar()},
+  etqPrint:()=>{document.body.classList.add('print-modal');const f=()=>{document.body.classList.remove('print-modal');removeEventListener('afterprint',f)};addEventListener('afterprint',f);print()},
+  etqGen:async el=>{
+    el.disabled=true;const col=st.cadTab,pref=col==='salas'?'S':'E',usados=new Set(),falt=semCodigo();
+    const ok=await RH.safe(async()=>{for(const x of falt){const c=RH.local.gerarCodigo(pref,usados);usados.add(c);await RH.upd(col,x.id,{codigoLocal:c})}return true});
+    if(ok){toast(`${falt.length} código${falt.length===1?'':'s'} gerado${falt.length===1?'':'s'}.`);setTimeout(()=>{if($('#etq-grid')){$('#etq-grid').innerHTML=etqGrid();$('#etq-bar').innerHTML=etqBar()}},700)}else el.disabled=false},
   agDias:el=>{document.querySelectorAll('[data-dia]').forEach(c=>{const d=+c.value;c.checked=el.dataset.v==='todos'||(d>=1&&d<=5)})},
   agAddH:()=>{st.M.horarios.push('');$('#ag-horas').innerHTML=horasHtml();const i=document.querySelectorAll('[data-hx]');i[i.length-1]?.focus()},
   agDelH:el=>{st.M.horarios.splice(+el.dataset.i,1);$('#ag-horas').innerHTML=horasHtml()},

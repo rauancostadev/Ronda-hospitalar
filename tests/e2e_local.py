@@ -223,6 +223,29 @@ def main():
         page.wait_for_selector("#scan-ov"); page.click("#scan-x"); page.wait_for_timeout(200)
         check("Cancelar fecha o painel sem registrar nada", page.locator("#scan-ov").count() == 0 and page.locator("section.bl:has(h2:has-text('UTI 02')) .items.locked").count() == 1)
 
+        # ---------- etiquetas (QR Code / código de barras) ----------
+        print("\n== Etiquetas ==")
+        page.evaluate("RH.put('salas','sx',{nome:'Sala sem código',setor:'UTI',ativo:true})"); page.wait_for_timeout(400)
+        page.click("#nav [data-p=cadastros]"); page.click("[data-act=cadTab][data-k=salas]"); page.click("[data-act=etqOpen]")
+        page.wait_for_selector(".etq-grid")
+        check("Etiquetas: uma por sala com código (2) e aviso das sem código", page.locator(".etq").count() == 2 and "1 sem código" in page.inner_text("#etq-bar"))
+        page.click("[data-act=etqGen]"); page.wait_for_timeout(1500)
+        cod = page.evaluate("RH.S.salas.find(s=>s.id==='sx').codigoLocal")
+        check("Gerar códigos faltantes cria o código e a etiqueta", cod.startswith("RH-S-") and page.locator(".etq").count() == 3, cod)
+        try:
+            import cv2, numpy as np
+            def decodifica(el):
+                png = el.screenshot(); img = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
+                return cv2.QRCodeDetector().detectAndDecode(cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_NEAREST))[0]
+            codes = page.evaluate("[...document.querySelectorAll('.etq code')].map(c=>c.textContent)")
+            lidos = [decodifica(page.locator(".etq .etq-img").nth(i)) for i in range(3)]
+            check("QR Code impresso decodifica para o código de cada local (OpenCV)", lidos == codes, (lidos, codes))
+        except ImportError:
+            print("  (pulado: instale opencv-python-headless para decodificar o QR)")
+        page.click("[data-act=etqFmt][data-v=c128]")
+        check("Formato código de barras gera SVG por etiqueta", page.locator(".etq.c128 svg").count() == 3)
+        page.click("[data-act=closeModal]")
+
         browser.close()
     srv.shutdown()
     bad = [n for n, ok in results if not ok]

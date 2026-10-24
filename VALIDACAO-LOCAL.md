@@ -27,6 +27,13 @@ npx cap open android      # Android Studio → Build → Build APK(s)
 
 **iPhone**: o plugin não expõe BSSID no iOS e a API da Apple exige entitlement + conta de desenvolvedor paga. No iPhone use a política *Conferir quando o aparelho conseguir ler*: vale só o código (e o hospital vê "Wi-Fi não verificado" no histórico).
 
+## Imprimir as etiquetas (QR Code ou código de barras)
+1. **Cadastros → Salas** (ou **Equipamentos**) → **Imprimir etiquetas**.
+2. Se aparecer "N sem código", clique em **Gerar códigos faltantes** (ou use "Gerar código" no cadastro de cada local).
+3. Escolha **QR Code (recomendado)** ou **Código de barras (Code 128)** e clique em **Imprimir**. Cada etiqueta traz QR/código, nome, setor e o texto do código.
+4. Imprima em 100%, preto sobre branco, recorte nas linhas pontilhadas e cole em ponto fixo do local. Teste a leitura no app antes de colar todas.
+O gerador é próprio (`js/core/barcode.js`, sem bibliotecas): QR nível Q com até 74 caracteres; Code 128 só com ASCII simples (sem acentos).
+
 ## Leitor de código de barras
 Usa o `BarcodeDetector` nativo (Chrome Android) e, se não existir (iPhone, WebView), carrega o **ZXing** sob demanda de `js/vendor/zxing-library.min.js` ou, na falta dele, da CDN jsdelivr (`@zxing/library@0.21.3`).
 Para funcionar offline/no APK, baixe `umd/index.min.js` desse pacote e salve como `js/vendor/zxing-library.min.js`.

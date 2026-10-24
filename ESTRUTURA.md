@@ -45,6 +45,7 @@ js/core/                núcleo (sem telas)
   images.js               redução de fotos
   ui.js                   aviso, tooltip, modal, selos, caixa de orientação
   data.js                 gravar/atualizar/apagar, sincronização em tempo real
+  barcode.js              gerador de QR Code e Code 128 (SVG) para as etiquetas
   local.js                presença no local: regras (código + BSSID), leitura de BSSID nativo, leitor de código de barras
 js/features/            uma tela (ou função) por arquivo
   auth.js                 login e primeiro acesso

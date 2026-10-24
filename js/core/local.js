@@ -245,8 +245,8 @@ function validaCadastro(data,ent,id){
   if(p.invalidos.length)return 'BSSID inválido: '+p.invalidos.join(', ')+'. Use aa:bb:cc:dd:ee:ff (ou aa:bb:cc:*:*:* para várias antenas do mesmo fabricante).';
   data.bssids=p.lista.join('\n');
   return ''}
-function gerarCodigo(prefixo){
-  const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',usados=new Set(alvos().map(a=>normCodigo(a.codigoLocal)));
+function gerarCodigo(prefixo,extra){
+  const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',usados=new Set([...alvos().map(a=>normCodigo(a.codigoLocal)),...(extra||[])]);
   let c;do{const b=crypto.getRandomValues(new Uint8Array(6));c=`RH-${prefixo}-`+[...b].map(x=>A[x%A.length]).join('')}while(usados.has(c));
   return c}
 

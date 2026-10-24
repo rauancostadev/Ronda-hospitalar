@@ -132,7 +132,7 @@ const hora=t=>new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-d
 const REDE={confere:'antena Wi-Fi conferida',indisponivel:'antena Wi-Fi não verificada',sem_cadastro:'local sem antena cadastrada',nao_exigida:''};
 function chkHtml(bl,e){
   if(!e.ativo)return '';
-  if(e.semCodigo)return `<div class="chk-box semcod"><small>${ic('shield',14)} Este local não tem código de barras cadastrado: presença não verificada.${st.me.role==='admin'?' Cadastre em Cadastros.':''}</small></div>`;
+  if(e.semCodigo)return '';   /* local sem código cadastrado: nada a mostrar (a ausência aparece no cadastro e no histórico) */
   if(e.ok)return `<div class="chk-box ok"><span class="pill okp"><i></i>Presença confirmada às ${hora(e.ok.ts)}</span><small>${esc(REDE[e.ok.rede]||'')}</small></div>`;
   const f=e.falhas[e.falhas.length-1];
   return `<div class="chk-box pend${e.bloqueado?' blk':''}"><div><b>${e.bloqueado?'Leia o código de barras do local para liberar o checklist.':'Presença no local ainda não confirmada (opcional).'}</b>${f?`<div class="err" role="alert">${esc(f.msg)}</div>`:''}</div>

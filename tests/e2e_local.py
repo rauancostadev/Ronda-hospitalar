@@ -5,7 +5,7 @@ o painel real da câmera é exercitado com câmera falsa do Chromium + BarcodeDe
 Modo local (IndexedDB descartável): nunca toca o banco real.
 Uso: python3 tests/e2e_local.py
 """
-import http.server, socketserver, threading, os, sys, functools
+import http.server, socketserver, threading, os, sys, functools, base64
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -144,6 +144,8 @@ def main():
         check("Evidência gravada em cada sala (status, rede, BSSID, tentativas rejeitadas)",
               sorted(docs) == [["UTI 01", "confirmada", "confere", "aa:bb:cc:dd:ff:12", 4], ["UTI 02", "confirmada", "confere", "aa:bb:cc:dd:ee:02", 0]], docs)
         page.click("tbody tr"); page.wait_for_selector(".mod")
+        check("Histórico só lista ocorrências: sem itens conformes", page.locator(".mod .pill.okp").filter(has_text="Conforme").count() == 0)
+        check("Histórico sem ocorrências mostra aviso", "Nenhuma não conformidade" in page.inner_text(".mod"))
         check("Histórico mostra o selo de presença", "Presença: código + Wi-Fi" in page.inner_text(".mod") and "4 leituras rejeitadas" in page.inner_text(".mod"))
         page.click("[data-act=closeModal]")
 
@@ -157,6 +159,28 @@ def main():
         page.click("#btn-sub"); page.wait_for_selector(".top h1:has-text('Histórico de rondas')")
         st = page.evaluate("t=>RH.S.rondas.filter(r=>r.ts>t).map(r=>r.presenca.status)", t0)
         check("Registrar: finaliza e marca 'nao_confirmada'", st == ["nao_confirmada", "nao_confirmada"], st)
+
+        # ---------- histórico: só ocorrências, com foto ----------
+        print("\n== Histórico ==")
+        PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+        page.evaluate("RH.put('tiposNC','t1',{nome:'Higienização deficiente',sev:2,orient:'Refazer.'})"); page.wait_for_timeout(300)
+        t1 = page.evaluate("Date.now()")
+        page.click("#nav [data-p=ronda]"); page.click("[data-act=pickRonda]"); page.wait_for_selector(".rhead")
+        for b in page.query_selector_all(".seg button.c"): b.click()
+        page.locator(".it").first.locator("button.n").click()
+        page.locator(".it").first.locator("select[data-nc=tipoId]").select_option(label="Higienização deficiente")
+        page.locator(".it").first.locator("textarea").fill("Piso sujo.")
+        page.locator(".it").first.locator("input[data-nc-foto]").set_input_files({"name": "f.png", "mimeType": "image/png", "buffer": PNG})
+        page.wait_for_selector(".ncp img")
+        page.click("#btn-sub"); page.wait_for_selector(".top h1:has-text('Histórico de rondas')")
+        page.locator("tbody tr").first.click(); page.wait_for_selector(".mod")
+        page.wait_for_timeout(400)
+        txt = page.inner_text(".mod")
+        check("Histórico lista a NC com tipo e descrição", "Não conforme" in txt and "Piso sujo." in txt and "Higienização deficiente" in txt, txt)
+        check("Histórico mostra a foto capturada na ronda", page.locator(".mod img[data-foto]").count() == 1 and page.evaluate("document.querySelector('.mod img[data-foto]').src.startsWith('data:image')"))
+        check("Histórico não lista itens conformes", page.locator(".mod .pill.okp").filter(has_text="Conforme").count() == 0 and txt.count("Limpeza adequada") == 1, txt)
+        check("Salas sem ocorrência aparecem só em 'Sem ocorrências'", "Sem ocorrências:" in txt)
+        page.click("[data-act=closeModal]")
 
         # ---------- painel real da câmera (câmera falsa + BarcodeDetector simulado) ----------
         print("\n== Painel da câmera ==")

@@ -3,7 +3,7 @@
    ========================================================================== */
 (()=>{
 const RH=window.RH;
-const {esc,S,HF,pc,fdt,ic,empty,modal,closeModal,toast}=RH;
+const {esc,S,st,HF,pc,fdt,ic,empty,modal,closeModal,toast,SEV}=RH;
 
 /* Inspetor: só enxerga as rondas que ele mesmo realizou. Gestor/administrador: todas. */
 const visiveis=()=>RH.access.soPropriasRondas()?S.rondas.filter(RH.access.rondaFeitaVisivel):S.rondas;
@@ -29,10 +29,22 @@ function qtd(e){
   return [ns?`${ns} sala${ns===1?'':'s'}`:'',eq.size?`${eq.size} equipamento${eq.size===1?'':'s'}`:''].filter(Boolean).join(' · ')||'—'}
 function openRonda(id){
   const e=RH.execs(visiveis().filter(r=>(r.execId||r.id)===id))[0];if(!e)return;
-  const porSala=e.docs.map(r=>{
-    const g={};(r.itens||[]).forEach(i=>{(g[i.a+i.i]=g[i.a+i.i]||{n:i.n,l:[]}).l.push(i)});
-    return `<div><h4 style="font-size:15px;border-bottom:2px solid var(--brand);padding-bottom:4px">${esc(r.salaNome)} <small>${esc(r.setor||'')} · ${pc(r.pct)}</small> ${RH.local.badge(r.presenca)}</h4>
-    ${Object.values(g).map(x=>`<div style="margin-top:10px"><b>${esc(x.n)}</b><div style="margin-top:4px">${x.l.map(i=>`<div style="display:flex;gap:10px;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><span>${esc(i.t)}</span>${i.just?`<small style="display:block;color:var(--ink2)">Motivo: ${esc(i.just)}</small>`:''}</div><span style="flex:none" class="pill ${i.r==='C'?'okp':i.r==='NC'?'st-aberta':'off'}">${rotulo(i.r)}</span></div>`).join('')}</div></div>`).join('')}</div>`}).join('');
+  /* só ocorrências: itens Não conforme / Inacessível (os conformes não são listados). NCs trazem a foto capturada na ronda. */
+  const ncs=ncsDa(e),ncDe=(r,i)=>ncs.find(n=>(n.rondaId===r.id||(n.execId&&n.execId===r.execId))&&n.itemTexto===i.t&&(i.a==='e'?n.eqId===i.i:!n.eqId&&n.salaId===r.salaId));
+  const itemOc=(r,i)=>{
+    const n=i.r==='NC'?ncDe(r,i):null;
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="display:flex;gap:10px;justify-content:space-between;align-items:center"><div style="min-width:0"><span>${esc(i.t)}</span>${i.just?`<small style="display:block;color:var(--ink2)">Motivo: ${esc(i.just)}</small>`:''}</div><span style="flex:none" class="pill ${i.r==='NC'?'st-aberta':'off'}">${rotulo(i.r)}</span></div>
+    ${n?`<div style="margin-top:6px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">${n.thumb||n.fotoId?`<img class="big-img" ${n.fotoId?`data-foto="${esc(n.fotoId)}"`:''} src="${n.thumb?esc(n.thumb):''}" alt="Foto da não conformidade" style="max-width:220px;max-height:160px;object-fit:cover;border-radius:8px">`:''}
+      <div style="flex:1;min-width:180px"><small style="display:block"><b>${esc(n.tipoNome||'')}</b> · severidade ${esc(SEV[n.sev]||n.sev)}</small>${n.desc?`<small style="display:block;color:var(--ink2)">${esc(n.desc)}</small>`:''}</div></div>`:''}</div>`};
+  const comOc=[],semOc=[];
+  e.docs.forEach(r=>{
+    const oc=(r.itens||[]).filter(i=>i.r==='NC'||i.r==='IN'||i.r==='NA');
+    if(!oc.length){semOc.push(`${esc(r.salaNome)} ${RH.local.badge(r.presenca)}`);return}
+    const g={};oc.forEach(i=>{(g[i.a+i.i]=g[i.a+i.i]||{n:i.n,l:[]}).l.push(i)});
+    comOc.push(`<div><h4 style="font-size:15px;border-bottom:2px solid var(--brand);padding-bottom:4px">${esc(r.salaNome)} <small>${esc(r.setor||'')} · ${pc(r.pct)}</small> ${RH.local.badge(r.presenca)}</h4>
+    ${Object.values(g).map(x=>`<div style="margin-top:10px"><b>${esc(x.n)}</b><div style="margin-top:4px">${x.l.map(i=>itemOc(r,i)).join('')}</div></div>`).join('')}</div>`)});
+  const porSala=(comOc.length?comOc.join(''):'<div class="empty"><b>Nenhuma não conformidade ou item inacessível</b>Todos os itens desta ronda estavam conformes.</div>')
+    +(semOc.length?`<div style="margin-top:14px;color:var(--ink2)"><small>Sem ocorrências:</small>${semOc.map(x=>`<div style="padding:3px 0"><small>${x}</small></div>`).join('')}</div>`:'');
   const obs=e.docs.map(r=>r.obs).find(Boolean),nNC=ncsDa(e).length;
   modal(`<div class="mh"><div><h3 style="font-size:16px">${esc(e.nome)}</h3><small>${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</small></div><button class="ic-btn" data-act="closeModal" aria-label="Fechar">${ic('x',16)}</button></div>
   <div class="mb"><div class="print-only rep-h"><b>${esc(S.cfg.hospital||'Ronda Hospitalar')}</b><span>Relatório de ronda · ${esc(e.nome)} · ${fdt(e.ts)} · Inspetor: ${esc(e.inspNome)}</span></div><div class="legend"><span>Conformidade <b>${pc(e.pct)}</b></span><span>Conformes <b>${e.c}</b></span><span>Não conformes <b>${e.nc}</b></span><span>Inacessíveis <b>${e.ina}</b></span></div>
@@ -41,6 +53,8 @@ function openRonda(id){
   <div class="mf">${RH.access.canDeleteRonda()?`<button type="button" class="btn bad sp" data-act="delRonda" data-id="${esc(e.id)}" id="btn-delronda">${ic('trash',16)} Excluir ronda</button>
     <label class="chk" style="margin-right:auto"><input type="checkbox" id="del-ncs" ${nNC?'':'disabled'}> Excluir também as ${nNC} não conformidade${nNC===1?'':'s'} geradas</label>`:''}
     <button type="button" class="btn" data-act="printRonda">Imprimir relatório</button><button type="button" class="btn" data-act="closeModal">Fechar</button></div>`,true);
+  /* troca a miniatura pela foto completa (coleção fotos) */
+  document.querySelectorAll('#modal img[data-foto]').forEach(img=>st.db.doc('fotos/'+img.dataset.foto).get().then(d=>{if(d.exists&&img.isConnected)img.src=d.data().data}).catch(()=>{}));
 }
 /* exclusão em dois toques; apaga os documentos da execução e, se marcado, as NCs (e fotos) */
 function imprimir(){document.body.classList.add('print-modal');const f=()=>{document.body.classList.remove('print-modal');removeEventListener('afterprint',f)};addEventListener('afterprint',f);print()}
